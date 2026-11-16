@@ -1,0 +1,61 @@
+# The conductor's route (ARCHITECTURE.md 12.2): what `ade conduct` does after each stop of `ade loop`.
+# The most specific row wins: stage and code, then code, then stage, then "*". Every stage and outcome the driver
+# can return must be covered, every `run` must parse as the ade command it names, and every code, role and wait
+# condition must exist: land and `ade graph --check` refuse a route that has drifted from the loop (route.unbound).
+# then: retry (once more; the same stop twice parks), wait (on a watcher condition, then run), wake (call `role`
+# headless with the stop, then run; the same stop twice parks), park (a person hold; the conductor moves on).
+
+[start]
+run = "ade loop {card}"
+
+# The two waits land returns: the main checkout off trunk or with uncommitted changes. A person usually fixes it.
+[[stop]]
+stage = "land"
+outcome = "wait"
+then = "wait"
+wait = "clean"
+run = "ade loop {card}"
+
+# A wait nobody has taught the route about: hold for a person rather than guess.
+[[stop]]
+stage = "*"
+outcome = "wait"
+then = "park"
+
+# An engine that exited badly is usually a blip (network, rate limit): one retry, never a model.
+[[stop]]
+stage = "*"
+outcome = "needs-judgement"
+code = "provider.failed"
+then = "retry"
+run = "ade loop {card}"
+
+# An engine at capacity (even one that exited 0) clears with time: one retry, and a second identical stop parks.
+[[stop]]
+stage = "*"
+outcome = "needs-judgement"
+code = "provider.capacity"
+then = "retry"
+run = "ade loop {card}"
+
+# A lane that edits its own [tests] is a person's call, never a model's.
+[[stop]]
+stage = "*"
+outcome = "needs-judgement"
+code = "tests.protected"
+then = "park"
+
+# A lane that changed protected config by any writer (a script, a Codex lane) is a person's call.
+[[stop]]
+stage = "*"
+outcome = "needs-judgement"
+code = "guard.protected"
+then = "park"
+
+# Everything else that needs judgement: the pilot looks once, then the loop goes again.
+[[stop]]
+stage = "*"
+outcome = "needs-judgement"
+then = "wake"
+role = "pilot"
+run = "ade loop {card}"

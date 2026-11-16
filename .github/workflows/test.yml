@@ -1,0 +1,176 @@
+# The suite on GitHub: the independent check behind the cloud sessions, which run it before every PR opens.
+# Linux runs on every pull request with the graph-selected tests (the whole suite for proof-grade paths, nightly and manual runs); GitHub tests the PR merged onto current main, so a merge that breaks main shows
+# on the next PR. Windows minutes bill at twice Linux and the Windows suite takes about six times as long, so Windows
+# runs only where a Windows-only break would hurt most: a PR touching a proof-grade path (ade.toml [rigour], the
+# land and push code), this workflow or pyproject.toml; once a night on main, if main moved; and on demand.
+# A Windows break elsewhere surfaces by the next morning instead of at the merge. macOS runs on the Mac mini
+# (ARCHITECTURE.md 8.1: macOS minutes cost ten times Linux on a private repo).
+# c342, CI minutes diet: November's free minutes were spent on day 2 ($10 left until the 1 Dec reset). So every Windows
+# run except release tags and manual dispatch, and the nightly job, wait on the repo variable ADE_WINDOWS_CI ("on";
+# unset means off). Off, a PR's Linux job runs the graph-selected tests, ade budget and ade graph --check only (land
+# already ran the lane's tests locally); drafts and stacked intermediates (the top PR's run covers them) are skipped.
+# Setting ADE_WINDOWS_CI=on restores the 1 Nov policy above with no file change; see docs/daily.md.
+name: test
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: "17 4 * * *"   # before the 06:47 London daily build, so it starts from a known main
+  push:
+    tags: ["v*"]   # a release tag runs the whole suite, Windows included
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read   # the PR's file list, to decide on Windows
+
+# A newer push to the same PR cancels the run it supersedes. Scheduled and manual runs never cancel each other.
+concurrency:
+  group: test-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    # No run for drafts, for the nightly while the variable is off; a stacked intermediate ends after the first step.
+    if: github.event.pull_request.draft != true && (github.event_name != 'schedule' || vars.ADE_WINDOWS_CI == 'on' || vars.ADE_WINDOWS_RUNNER == 'pc')
+    runs-on: ${{ (vars.ADE_LINUX_RUNNER == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","Linux","ade-linux"]') || 'ubuntu-latest' }}
+    outputs:
+      windows: ${{ steps.scope.outputs.windows }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so the stack and scope steps can find the ade/* PR below this one in a stack
+      - id: stack
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          [ "$GITHUB_EVENT_NAME" = pull_request ] || exit 0
+          git fetch --no-tags origin '+refs/heads/ade/*:refs/remotes/origin/ade/*' 'refs/heads/main:refs/remotes/origin/main' || true
+          git for-each-ref --format='%(refname:short) %(objectname)' refs/remotes/origin/ade/ | while read -r name sha; do
+            [ "$name" = "origin/$HEAD_REF" ] && continue
+            [ "$sha" = "$HEAD_SHA" ] && continue
+            git merge-base --is-ancestor "$HEAD_SHA" "$sha" || continue
+            git merge-base --is-ancestor "$sha" origin/main && continue
+            echo "Covered by the run for $name" >&2; echo "skip=1" >> "$GITHUB_OUTPUT"; break
+          done
+      # Every step below is skipped when the stack step says skip (c709: one job, not a gate job plus this one).
+      - if: steps.stack.outputs.skip != '1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - if: steps.stack.outputs.skip != '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # ADE_LINUX_RUNNER=pc: on the self-hosted runner, keep git config, ADE's work dir and the install inside RUNNER_TEMP so nothing persists.
+      - if: steps.stack.outputs.skip != '1' && runner.environment == 'self-hosted'
+        run: |
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "ADE_WORK=$RUNNER_TEMP/ade-work" >> "$GITHUB_ENV"
+          python -m venv "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      - if: steps.stack.outputs.skip != '1'
+        run: git config --global user.name ci && git config --global user.email ci@example.invalid
+      - if: steps.stack.outputs.skip != '1'
+        run: pip install .
+      # Scope first. A PR runs the graph-selected tests plus ade rehearse; nightly, manual runs and PRs touching a
+      # proof-grade path (graph.select_tests returns None for ade.toml [rigour]) run the whole suite. The proof-grade
+      # list is read from ade.toml, so there is no second copy here to go stale.
+      # A stacked PR (c337) is judged on its own commits: its main diff also holds the cards below it, whose land.py
+      # changes made a site-only card run Windows for 17 minutes. So when a remote ade/* branch (not this PR's) is an
+      # ancestor of the head and not yet in main, the newest such branch is the base and only its diff counts;
+      # with none, the PR's file list is used as before.
+      - id: scope
+        if: steps.stack.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          ADE_WINDOWS_CI: ${{ vars.ADE_WINDOWS_CI }}
+          ADE_WINDOWS_RUNNER: ${{ vars.ADE_WINDOWS_RUNNER }}
+        run: |
+          # full=1: tags, dispatch or the variable on also run ade init --dry-run and ade rehearse.
+          case "$GITHUB_EVENT_NAME" in workflow_dispatch|push) FULL=1 ;; *) [ "$ADE_WINDOWS_CI" = on ] && FULL=1 || true ;; esac
+          [ "$FULL" = 1 ] && echo "full=1" >> "$GITHUB_OUTPUT" || true
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch|push) echo "windows=1" >> "$GITHUB_OUTPUT" ;;
+            schedule) [ $(( $(date +%s) - $(git log -1 --format=%ct) )) -lt 90000 ] && echo "windows=1" >> "$GITHUB_OUTPUT" || true ;;
+            pull_request)
+              git fetch --no-tags origin '+refs/heads/ade/*:refs/remotes/origin/ade/*' 'refs/heads/main:refs/remotes/origin/main' || true
+              BASE=$(git for-each-ref --sort=-committerdate --format='%(refname:short) %(objectname)' refs/remotes/origin/ade/ | while read -r name sha; do
+                [ "$name" = "origin/$HEAD_REF" ] && continue
+                [ "$sha" = "$HEAD_SHA" ] && continue
+                git merge-base --is-ancestor "$sha" "$HEAD_SHA" || continue
+                git merge-base --is-ancestor "$sha" origin/main && continue
+                echo "$sha"; break
+              done)
+              if [ -n "$BASE" ]; then echo "Stacked on $BASE: judging only this card's commits" >&2; git diff --name-only "$BASE" "$HEAD_SHA"
+              else gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename'; fi | python -c "
+          import os, sys, tomllib
+          from ade import config, graph
+          files = sys.stdin.read().split()
+          # providers.py and host.py hold the os.name == 'nt' branches; c157 merged with Windows skipped and turned main's Windows job red.
+          watch = set(tomllib.load(open('ade.toml', 'rb'))['rigour']['proof_grade']) | {'.github/workflows/test.yml', 'pyproject.toml', 'ade/providers.py', 'ade/host.py'}
+          hit = sorted(watch.intersection(files))
+          # c707: on the free PC runner any ade/ or tests/ file can break on Windows (path handling), so any of them runs it
+          if os.environ.get('ADE_WINDOWS_RUNNER') == 'pc': hit = sorted(set(hit) | {f for f in files if f.startswith(('ade/', 'tests/'))})
+          # ADE_WINDOWS_RUNNER=pc: Windows minutes are free there, so it gates the windows output like ADE_WINDOWS_CI (never the Linux full path)
+          on = os.environ.get('ADE_WINDOWS_CI') == 'on' or os.environ.get('ADE_WINDOWS_RUNNER') == 'pc'
+          if hit and on: print('windows=1')
+          print('Windows is off (ADE_WINDOWS_CI is not on and ADE_WINDOWS_RUNNER is not pc)' if hit and not on else 'Windows runs for: ' + ', '.join(hit) if hit else 'No proof-grade path touched; Windows waits for the nightly run', file=sys.stderr)
+          cfg = config.load('.').cfg
+          chosen = graph.select_tests(graph.build('.', cfg), files, cfg)
+          print('Whole suite' if chosen is None else 'Selected tests: ' + ' '.join(chosen), file=sys.stderr)
+          open('tests.txt', 'w').write('' if chosen is None else ('none' if not chosen else ' '.join(chosen)))
+          " >> "$GITHUB_OUTPUT" ;;
+          esac
+      # Charter section 3 budget: whole suite under 5 minutes (about 2 today). Windows below stays unbounded: its suite runs about 6 times as long.
+      - if: steps.stack.outputs.skip != '1'
+        run: |
+          if [ "$(cat tests.txt 2>/dev/null)" = none ]; then echo "No test reaches this change"
+          elif [ -s tests.txt ]; then python -m unittest -v $(cat tests.txt)
+          else python -m unittest -v; fi
+        timeout-minutes: 5
+      - if: steps.stack.outputs.skip != '1'
+        run: ade budget
+      - if: steps.stack.outputs.skip != '1'
+        run: ade graph --check
+      - if: steps.stack.outputs.skip != '1' && steps.scope.outputs.full == '1'
+        run: ade init --dry-run
+      # The newcomer path and one loop per config option, on throwaway repos with the fake provider.
+      - if: steps.stack.outputs.skip != '1' && steps.scope.outputs.full == '1'
+        run: ade rehearse
+
+  windows:
+    needs: linux
+    if: needs.linux.outputs.windows == '1'
+    # c345: ADE_WINDOWS_RUNNER=pc moves this job to the self-hosted PC (never for fork PRs); unset, it is windows-latest.
+    runs-on: ${{ (vars.ADE_WINDOWS_RUNNER == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","Windows","ade-pc"]') || 'windows-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: runner.environment != 'self-hosted'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # On the PC, use its own python in a venv so pip never touches the user site-packages.
+      - if: runner.environment == 'self-hosted'
+        run: |
+          python -m venv "$env:RUNNER_TEMP\venv"
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\venv\Scripts"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # c348: on the PC, keep global git config and ADE's work dir inside RUNNER_TEMP.
+      - if: runner.environment == 'self-hosted'
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value "GIT_CONFIG_GLOBAL=$env:RUNNER_TEMP\gitconfig"
+          Add-Content -Path $env:GITHUB_ENV -Value "ADE_WORK=$env:RUNNER_TEMP\ade-work"
+      - run: git config --global user.name ci && git config --global user.email ci@example.invalid
+      - run: pip install .
+      - run: python tools/slow_tests.py
+      - run: ade budget
+      - run: ade graph --check
+      - run: ade init --dry-run
+      - run: ade rehearse

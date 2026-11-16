@@ -1,0 +1,122 @@
+# The kit's own configuration: ADE builds ADE. Every kit path is orchestration-grade except the code that lands and
+# pushes (charter rule 1): a fault there puts broken bytes on the remote.
+
+[tests]
+command = "{python} -m unittest {tests}"
+fail_proof = true
+critical = ["tests/test_session.py", "tests/test_conduct.py", "tests/test_wait.py", "tests/test_q.py", "tests/test_install.py", "tests/test_loop.py", "tests/test_budget.py", "tests/test_host.py", "tests/test_graph.py", "tests/test_start.py", "tests/test_stages.py", "tests/test_guard.py", "tests/test_records.py", "tests/test_decide.py", "tests/test_telemetry.py", "tests/test_orca.py", "tests/test_rehearse.py", "tests/test_port.py", "tests/test_push.py"]
+
+[rigour]
+# The landing runway, its backstop and catch-up, and the one push: the whole suite runs for any change to them.
+proof_grade = ["ade/stages/land.py", "ade/push.py", "ade/verbs/land.py", "ade/verbs/push.py"]
+
+[graph]
+exclude = ["tests/fixture_*"]
+require = ["header"]
+note = ["tests"]
+untested_ok = ["ade/__main__.py", "bin/ade"]  # entry shims: two lines that call ade.cli.main
+
+[budgets]
+core = ["ade/*", "bin/*"]
+core_exclude = []
+tests = 200  # Connor's hard cap on the kit's own test functions under tests/ (CHARTER budget table). Not a ratchet: a prune never lowers it, and a truly needed test may be added up to it, with rehearsal, screenshots and logs as proof first.
+
+# One row per component of ARCHITECTURE.md section 2; that table is the reasoning, this is the enforced copy.
+# Globs use fnmatch, where * crosses '/'. Rows may name files that do not exist yet.
+[budgets.components.core]
+globs = ["ade/config.py", "ade/records.py", "ade/refuse.py", "ade/gitx.py", "ade/push.py", "ade/clock.py", "ade/cli.py", "ade/host.py",
+         "ade/__init__.py", "ade/__main__.py", "ade/template.toml", "bin/*"]
+lines = 1100
+
+[budgets.components.lib]
+globs = ["ade/lib/*"]
+lines = 500
+
+[budgets.components.graph]
+globs = ["ade/graph.py", "ade/lang/*"]
+lines = 1200
+
+[budgets.components.brief]
+globs = ["ade/verbs/hook.py"]  # the bash-guard part moves to guards when card 7 adds it
+lines = 400
+
+[budgets.components.handover]
+globs = ["ade/verbs/handover.py"]
+lines = 500
+
+[budgets.components.driver]
+globs = ["ade/verbs/loop.py", "ade/stages/__init__.py"]
+lines = 500
+
+[budgets.components.lane]
+globs = ["ade/stages/lane.py", "ade/stages/build.py"]
+lines = 500
+
+[budgets.components.review]
+globs = ["ade/stages/review.py"]
+lines = 500
+
+[budgets.components.tests]
+globs = ["ade/stages/test.py"]
+lines = 600
+
+[budgets.components.land]
+globs = ["ade/stages/land.py"]
+lines = 700
+
+[budgets.components.providers]
+globs = ["ade/providers.py", "ade/providers/*"]
+lines = 800
+
+[budgets.components.waits]
+globs = ["ade/wait.py", "ade/verbs/wait.py"]
+lines = 200
+
+[budgets.components.verbs]
+globs = ["ade/verbs/__init__.py", "ade/verbs/card.py", "ade/verbs/decide.py", "ade/verbs/status.py",
+         "ade/verbs/budget.py", "ade/verbs/graph.py", "ade/verbs/land.py", "ade/verbs/push.py", "ade/budget.py",
+         "ade/verbs/parts.py", "ade/parts.py", "ade/parts.toml", "ade/verbs/digest.py", "ade/verbs/config.py"]
+lines = 1250
+
+[budgets.components.install]
+globs = ["ade/install.py", "ade/survey.py", "ade/verbs/init.py", "ade/verbs/uninstall.py", "ade/verbs/link.py", "ade/starters/*",
+         "ade/setup.py", "ade/verbs/setup.py", "ade/firstrun.py"]
+lines = 1500
+
+[budgets.components.conductor]
+globs = ["ade/verbs/conduct.py", "ade/route.py", "ade/route.toml"]
+lines = 500
+
+[budgets.components.q]
+globs = ["ade/q.py", "ade/verbs/q.py"]
+lines = 450
+
+[budgets.components.sessions]
+globs = ["ade/verbs/session.py"]
+lines = 300
+
+[budgets.components.guards]
+globs = ["ade/guard.py"]
+lines = 300
+
+[budgets.components.telemetry]
+globs = ["ade/telemetry.py", "ade/verbs/telemetry.py", "ade/meter.json", "ade/burn.py"]
+lines = 900
+
+[budgets.components.cockpit]
+globs = ["ade/verbs/cockpit.py", "ade/verbs/watch.py", "ade/orca.py", "ade/home.py", "ade/mods/*"]
+lines = 600
+
+[budgets.components.rehearse]
+globs = ["ade/verbs/rehearse.py"]
+lines = 400
+
+[review]
+# Trial (Connor 11/13 Nov): opposite-engine review where codex is on PATH (Mac-flown cards); elsewhere the same engine reviews and the review_verdict row says why. 15 opposite-reviewed cards, then assess each Sol-driven change for value and fit (could the gap be documented or fixed by subtraction instead?); revert both lines if no value.
+engine = "opposite"
+
+# Reviewer calibration pilot (c605/RC2, Connor 6 Nov 13:50 "sure, but i'd pilot the change"): one good catch and one
+# bad approval from our records. RC2 compares the next 15 reviewed cards with the 15 before; if nil change, remove.
+[roles.reviewer]
+system_prompt = "roles/reviewer.examples.md"
+effort = { codex = "medium" }

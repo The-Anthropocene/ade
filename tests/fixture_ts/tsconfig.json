@@ -1,0 +1,5 @@
+{
+  // tsconfig allows comments and trailing commas; the reader must too, and follow a relative extends
+  "extends": ["expo/tsconfig.base", "./tsconfig.base"],
+  "compilerOptions": { "strict": true, },
+}

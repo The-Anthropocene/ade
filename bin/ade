@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+# id: bin.ade
+# what: shim so `ade` runs from any directory without installing the package
+# cmd: ade <verb> [args]
+# reads: -
+# writes: -
+import sys
+from pathlib import Path
+
+# The kit is located from this file, so a clone anywhere (SSD, /tmp) runs itself, not another copy.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ade.cli import main  # noqa: E402
+
+sys.exit(main())

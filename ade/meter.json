@@ -1,0 +1,33 @@
+{
+  "model": "a5v3-2026-10-05",
+  "unit": "weekly-meter points; 100 = one full weekly allowance; Claude Max 20x, one account",
+  "formula": "points = weight(model) * ( A*(price.in*input + price.out*output) + B*(price.cacheRead*cacheRead + price.coldWrite*coldWrite + price.coldWrite*warmWrite*warmWriteFactor) ) / 1e6",
+  "prices": { "in": 0.285, "out": 1.28, "cacheRead": 0.008, "coldWrite": 0.30, "status": "borrowed (u/flobernd), relative prices" },
+  "coldWrite": { "fractionOfContext": 0.5, "minContextTokens": 30000, "rule": "cacheWrite >= 0.5*(input+cacheRead+cacheWrite) AND input+cacheRead+cacheWrite >= 30000" },
+  "sets": {
+    "warm-free": { "A": 1.181, "B": 0.719, "warmWriteFactor": 0, "fableWeight": 4.25, "default": true },
+    "equal-price": { "A": 0.7285, "B": 0.7276, "warmWriteFactor": 1, "fableWeight": 4.5 }
+  },
+  "weights": {
+    "opus": { "value": 1.0, "status": "identified (Opus 5 and 5.5 equal)" },
+    "sonnet": { "value": 0.6, "status": "prior, weakly supported; plausible 0.5-0.8" },
+    "haiku": { "value": 0.2, "status": "borrowed" },
+    "fable": { "value": "set.fableWeight", "status": "fitted, weak" }
+  },
+  "fiveHourToWeeklyRatio": { "value": 3.96, "meaning": "the five-hour meter reads 3.96x the weekly meter for the same usage", "status": "identified" },
+  "eras": [
+    { "until": "2026-09-14T00:00:00Z", "asMeteredFactor": 0.8333, "status": "inferred; weekly meter unsampled before 2026-09-19" },
+    { "from": "2026-09-14T00:00:00Z", "asMeteredFactor": 1 }
+  ],
+  "accuracy": "weekly totals about +/-2 points (+/-2-5 if the Sonnet weight is 0.5-0.8); not for cause attribution",
+  "validation_week_2026-10-25": {
+    "set": "warm-free",
+    "daily": [
+      { "day": "2026-10-25/26", "meterRise": 7, "model": 6.46 },
+      { "day": "2026-10-26/27", "meterRise": 11, "model": 11.53 },
+      { "day": "2026-10-27/28", "meterRise": 23, "model": 16.84, "note": "gap = usage on other surfaces (Claude project cloud threads, a second PC)" },
+      { "day": "2026-10-28/29", "meterRise": 20, "model": 16.18, "note": "same" }
+    ],
+    "otherSurfacesPriced": { "points": "10.4-14.5", "source": "the Claude project's usage page totals, priced with this model" }
+  }
+}

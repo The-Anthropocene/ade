@@ -1,0 +1,341 @@
+# Atlas ADE configuration. `ade init` writes this once; edit it, then rerun `ade init` to
+# regenerate .claude/settings.json, .claude/agents/ and AGENTS.md from it.
+
+#: How ADE uses git: trunk, pushing and pull requests.
+[git]
+main = "main"
+# ade pushes to this remote, and only trunk, the ade-records branch and tags matching push_tags: no force, fast-forward
+# only, and no deletes but one (prune_merged below) (`ade push`). A repo without this remote is simply not pushed.
+remote = "origin"
+# "land": every landing pushes once it has merged; a refused push is printed and the card stays landed.
+# "pr": for a protected trunk. A landing never pushes trunk: it pushes the merge commit as ade/<card> (never forced) and
+# opens a pull request into trunk with `gh pr create`; without gh it prints the command to run by hand.
+# "manual": only `ade push` pushes.
+push = "land"
+push_tags = ["checkpoint/*"]
+# The one deletion: with push = "pr", after a landing fetches trunk, every remote ade/* branch whose tip trunk already
+# contains is deleted (--force-with-lease on the tip checked, so a moved branch is kept; squash-merged or open ones stay).
+prune_merged = true
+# Branch mirrors as "src:dst" (["master:main"]): dst follows src, fast-forward only, never forced or deleted. With a GitHub
+# remote, ade init writes .github/workflows/ade-mirror.yml so GitHub moves dst (no machine pushes it); elsewhere ade push
+# sends it. A first init copies these from remote.<remote>.push refspecs.
+mirror = []
+
+#: How a project's tests are run, found for a change and retried when they fail.
+[tests]
+# {tests} becomes the test files the graph selects, in one run; an empty selection runs the bare command.
+# {test} instead runs the command once per selected file, for tests that are scripts (`npx tsx {test}`).
+# {paths} (the files the lane changed against main, a list like {tests}), {base} (the main sha it is compared with) and {tip}
+# (the lane's HEAD sha) work in command, always and critical, so a project's own runner can select for itself; exit code is the verdict.
+# {python} is the interpreter running ade, so the same line works on Windows, macOS and Linux.
+command = "{python} -m unittest {tests}"
+# Commands run first for every change that touches code, such as a typecheck (`npm run typecheck`).
+always = []
+# Used when a touched path is unknown to the graph or no test reaches it. Empty = whole suite.
+critical = []
+timeout = 600
+# true: after the tests pass, land reruns the card's changed tests with its changed non-test files put back as main has them,
+# and records fail_proof: true when they fail there, or notes "tests pass without the change". Never blocks.
+fail_proof = false
+# A command printing JSON {path: [unit, ...]} for the {paths} given: the project's own runner names the units that cover
+# them, added to the graph's selection (a failing or non-JSON map falls back to the graph alone).
+# map = "./tools/test-map {paths}"
+# A failure whose output matches this gets one isolated retry; anything else fails at once.
+timing = "timed? ?out|deadline exceeded|ETIMEDOUT|ECONNRESET|temporarily unavailable"
+
+#: How each card's separate checkout gets the folders it needs without installing them again.
+[lanes]
+# Gitignored folders a lane needs but a worktree does not check out, such as dependencies (["node_modules"],
+# [".venv"]). Each lane links them from the main checkout (a junction on Windows) instead of installing again.
+share = []
+
+#: Which paths get the full test suite and which paths land without review.
+[rigour]
+# Paths whose output can cause harm: a change touching one runs the whole suite, in the lane and again on the merged
+# main at land. Everything else is orchestration-grade and runs the tests the graph says reach it.
+proof_grade = []
+# Prose paths that land without review.
+no_review = ["*.md", "docs/*"]
+
+#: How ADE maps the code, its tests and its docs, and what it requires of each changed file.
+[graph]
+out = "graph.json"
+exclude = []
+# Globs of history docs (changelogs, decision logs): records of the past, kept as written. They stay in the graph but
+# make no doc edge, so no brief tells an agent to update them.
+history = []
+# Globs of shared helpers (a string or a list) that the builder prompt and the briefing's reuse line point agents at.
+blessed = []
+tests = ["tests/*", "test_*.py", "*/test_*.py", "*.test.*", "*.spec.*", "*/__tests__/*",
+         "*_test.go", "*Test.java", "*Tests.java", "*Test.kt", "*Tests.kt", "*Tests.cs", "*Test.cs", "*.Tests/*",
+         "*_test.c*", "test_*.c*", "*/test_*.c*"]
+# Scripts whose `ade <verb>` lines are bound to those verbs in the graph and checked at land, so a renamed verb or a
+# new required argument cannot leave a script behind.
+scripts = ["*.sh", "*.ps1", "*.cmd", "tools/*", "scripts/*", ".github/workflows/*"]
+# What every added or changed code file should carry: "tests" (a test reaches it through imports) and "header"
+# (the five-line header). `require` stops land until it is there; `note` lands and records what is missing. Tests are
+# minimal (one robust invariant, never a literal example), so a missing test is noted, not blocked. New projects require the header.
+require = []
+note = ["tests"]
+untested_ok = []
+
+#: Which secret files and which shell commands the guards refuse to read or write.
+[guards]
+# The bash guard (hook 2) refuses only these classes, in every permission mode. Secret files are never
+# printed by a reader; pass them by path. Writers are refused on [protected] paths.
+secrets = [".env", ".env.*", "*.pem", "*.key", "id_rsa*", "id_ed25519*", "*.p12"]
+# A secret_ok glob, like secrets, matches the basename, the repo- or home-relative path, the absolute path and any trailing run of its components, so a short glob (e.g. '.env.example') allows that name in every folder; write a longer path to narrow it.
+secret_ok = [".env.example", ".env.sample", ".env.template"]
+readers = ["cat", "less", "more", "head", "tail", "bat", "grep", "rg", "egrep", "awk", "sed", "cut", "sort",
+           "xxd", "od", "hexdump", "strings", "base64", "nl", "type", "Get-Content", "gc", "jq", "yq"]
+writers = ["tee", "cp", "mv", "rm", "truncate", "ln", "install", "dd"]
+
+#: The paths an agent may not edit, and what it is told to do about them instead.
+[protected]
+# Edits by an agent are refused here; change them by hand, then rerun `ade init`.
+paths = ["ade.toml", ".claude/settings.json", ".claude/settings.local.json", ".claude/agents/*", "AGENTS.md", ".git/*", ".ade/*"]
+cures = { "ade.toml" = "ade.toml is protected: you may run `ade parts set` (and `ade setup`); name any other key to the person, who changes it and reruns `ade init`. Find a setting with `ade config WORD`." }  # glob = text: what a refusal on a matching path tells the agent to do instead, e.g. { "engine/v1/*" = "v1 is frozen; build it in v2/" }
+
+#: Which changes wait for a person's answer before they land.
+[land]
+ask = []  # globs: a lane changing one of these lands only after `ade decide --answer <id> land`; that question has no default
+strays = "warn"  # files outside the card's paths: "off" | "warn"
+
+#: The size limits that keep the kit and its briefings small.
+[budgets]
+core_lines = 20000
+hooks = 8  # one function per hook: a job that wants a hook gets its own, never a share of another's
+refusal_codes = 50
+rulings = 24  # live rulings the rule book holds; `ade decide` refuses one more at the limit, and only ade.toml raises it
+standing = 6  # of those, the standing ones (no paths: every role reads them first)
+handover_tokens = 20000
+brief_tokens = 250
+# Files a search result gets graph notes for (hook 5); the rest are counted in one line, so the cap shows.
+grep_files = 3
+# Off by default: no file counts. To turn the budget on, list globs of the files to count, e.g. core = ["src/*"], and set core_lines.
+core = []
+core_exclude = ["tests/*", "test_*.py", "*/test_*.py"]
+
+# Per-component line budgets: name = { globs, lines }. Every core file must match exactly one row;
+# `ade budget` reports the rest as "unassigned" or "overlapping", each with a budget of 0. Empty = total only.
+#: How the core code's line budget is divided among named components.
+[budgets.components]
+
+# Providers are adapters: argv templates with {prompt} and {model}. `fake` is built in,
+# deterministic and spends no usage; set ADE_PROVIDER=fake for tests and rehearsals.
+#: How ADE starts Claude Code for a role, and what that call may inherit from the host.
+[providers.claude]
+# secrets = { NAME = "key file" } loads a key file into this call's environment only, e.g. secrets = { ANTHROPIC_API_KEY = "~/.creds/anthropic.txt" }; a key name in pass_env refuses at load, and scrub_env drops it from every lane.
+# {mode} is [permissions] lane_mode: lanes are separate checkouts (git worktrees), not a sandbox, and hooks guard edits and shell in every mode.
+# stream-json (with -p it needs --verbose) streams events; its final result line carries the call's usage report and refused tools; ade keeps them locally.
+# Your own ~/.claude skills, agents, commands and plugins still load in every Claude lane (a 25-skill pack added about 3,500 prompt tokens to each call in the 11 Nov rehearsal);
+# to keep them out, a role takes args = { claude = ["--setting-sources", "project,local"] }, which also drops your ~/.claude/settings.json (ADE's --settings and the project's settings still apply).
+cmd = ["claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "{mode}", "--output-format", "stream-json", "--verbose"]
+timeout = 1800
+stall = 600  # seconds without a new byte in the lane log (0 = off); Codex lanes once sat silent 30 minutes when a retry finished in 36 s
+# lane_settings: every call passes --settings <.ade/lanes/<card>.settings.json> with the [permissions] allow and deny keys (held in an
+# untrusted checkout too) and, on macOS and on Linux with bwrap, a read sandbox denying [guards] secrets; elsewhere hook 2 alone guards them.
+lane_settings = true
+# Fork arguments for [review] fork: `new` starts a session ({session} is ADE's id), `fork` branches one; codex and opencode name none, so always call cold.
+new = ["--session-id", "{session}"]
+fork = ["--resume", "{session}", "--fork-session"]
+# Dropped from the environment of each claude call: what a host Claude Code session (one that runs ade) sets, so the child
+# runs as your own login. ANTHROPIC_BASE_URL is here because a host points it at its own proxy; if you set it on purpose, remove it.
+# Keys and tokens (*_KEY, *_TOKEN, *_SECRET) never reach a lane, bar the engine's own auth variable (AUTH_ENV in providers.py).
+# A host session's memory stores, thinking budget, MCP settings and cache TTL would otherwise reach the lane, so a lane's effort and cost are what its role says.
+scrub_env = ["CLAUDECODE", "CLAUDE_CODE_*", "CLAUDE_AGENT_SDK_*", "CLAUDE_PID", "CLAUDE_EFFORT", "CLAUDE_PLUGIN_DATA",
+             "ANTHROPIC_BASE_URL", "CLAUDE_MEMORY_STORES", "MAX_THINKING_TOKENS", "MCP_*", "ENABLE_PROMPT_CACHING_1H",
+             "FORCE_PROMPT_CACHING_5M", "CLAUDE_COWORK_MEMORY_PATH_OVERRIDE"]
+pass_env = []  # host variables a lane keeps though scrub_env drops them, e.g. ["CLAUDE_CODE_PROMPT_CACHE_TTL"]; a key or token name refuses at load
+
+#: How ADE starts Codex for a role, and how its rights and reasoning effort are set.
+[providers.codex]
+# secrets = { NAME = "key file" } loads a key file into this call's environment only, e.g. a custom model_provider with env_key = "OPENROUTER_KEY" takes secrets = { OPENROUTER_KEY = "~/.creds/openrouter.txt" }; a key name in pass_env refuses at load, and scrub_env drops it from every lane.
+# --json prints events with token counts; a rate_limits window, when one appears, feeds the week meter. Codex reports tokens but no cost.
+# {mode} is filled from modes by [permissions] lane_mode, so a Codex lane's rights do not hang on your own Codex config.
+# {deny_reads} becomes a permission profile on :workspace that denies reads of [guards] secrets, turns the network on and lets the lane
+# write the worktree's git dirs (codex exec -s would override a profile, so no --sandbox). Every mode takes it: :danger-full-access cannot be extended.
+# The flag names were checked against codex-cli 0.167 (31/10/2026).
+# memories.use_memories=false: a lane is a fresh, project-scoped seat, so codex's own memory store (~/.codex/memories)
+# stays out of it; a project that wants memories removes the two arguments.
+# Your other ~/.codex config and plugins still apply; to isolate them, run ade with CODEX_HOME pointing at a separate directory.
+cmd = ["codex", "exec", "--json", "-c", "memories.use_memories=false", "-m", "{model}", "{mode}", "{prompt}"]
+default_effort = "medium"  # for a role with no codex effort, so a lane never inherits ~/.codex reasoning effort
+# Compaction: unset means a codex lane inherits ~/.codex/config.toml; set, a lane passes -c model_auto_compact_token_limit / model_context_window.
+# auto_compact_token_limit = 200000
+# context_window = 400000
+timeout = 1800
+stall = 600  # seconds without a new byte in the lane log (0 = off); Codex lanes once sat silent 30 minutes when a retry finished in 36 s
+modes = { default = ["{deny_reads}"] }
+
+#: How ADE starts opencode for a role, so any model it can reach can do the work.
+[providers.opencode]
+# Any model opencode can reach, named provider/model (openrouter/..., ollama/...), beyond Claude and Codex. --format json prints each
+# step's tokens and cost; --auto approves its own tool prompts (lanes are worktrees, not a sandbox; no Claude Code hooks). secrets loads a key
+# file into this call's environment only, e.g. secrets = { OPENROUTER_API_KEY = "~/.creds/openrouter.txt" }; else opencode's own login or an exported variable.
+cmd = ["opencode", "run", "--format", "json", "--auto", "-m", "{model}", "{prompt}"]
+timeout = 1800
+stall = 900  # real macOS runs showed 'opencode run --format json' streams events as it goes (the lane log grew in steps), so a log-growth stall bound works; 900 s sits above the longest healthy quiet spell (about 12 minutes) and below the timeout
+# sandbox = "os" runs each call under the OS read guard of [guards] secrets (sandbox-exec on macOS, bwrap on PATH on Linux; else unwrapped, `ade init` says so); a real macOS opencode lane was denied a secret by cat, node and its read tool.
+sandbox = "os"
+
+#: How ADE starts Pi for a role, reading its JSON event stream for the answer and usage.
+[providers.pi]
+# Pi (--mode json) reads the prompt as @file: {prompt_file} is .ade/lanes/<card>.<role>.prompt.md, written per call, since a Windows .cmd launcher cuts argv at the first newline. -e names the lane's ADE extension on the command line, so Pi loads it with no project-trust decision; no --approve, which stays the person's own opt-in.
+cmd = ["pi", "-p", "--mode", "json", "--no-session", "-e", ".pi/extensions/ade.ts", "--model", "{model}", "@{prompt_file}", "Work the card above."]
+timeout = 1800
+sandbox = "os"
+
+#: How a lane's diff is reviewed, and by which engine.
+[review]
+# true: the first review of a day starts one parent session that reads CHARTER.md and ARCHITECTURE.md, and each review
+# forks it with the lane diff, so that shared reading is paid once a day. It pays when reviews read a lot; on light
+# reviews it saves little. Needs a reviewer provider with `new` and `fork`; a failed fork falls back to the cold call.
+fork = false
+# The files the fork parent reads, those that exist; when none do, no parent starts and the review runs cold.
+fork_reads = ["CHARTER.md", "ARCHITECTURE.md"]
+# "same": the reviewer role's own provider reviews. "opposite": the roster's other engine (claude <-> codex) than the one
+# the build stage used (read from that card's latest build usage row) reviews, with its model from the reviewer's models
+# table; when that provider is missing from PATH or has no model, the same engine reviews and the review row says why
+# (fallback: <why>). A builder engine with no opposite (opencode) prints "opposite review: no opposite for opencode,
+# using <engine>" and the same engine reviews. ADE_PROVIDER still forces every role.
+engine = "same"
+
+#: How ADE's conductor routes stops, waits and parks a card, and how much it may spend in a day or week.
+[conduct]
+# `ade conduct` routes each stop by ade/route.toml; a card that woke a model `wakes` times parks, a route wait after `wait`.
+wakes = 2
+wait = "30m"
+answerer = "person"  # who answers a park's question; "agent": the agent watching the project answers it or asks its person, and may make a standing proposal stand
+# `--follow` stops when a new day begins ("day"); "never" keeps following across days (the week share still stops it).
+follow_stop = "day"
+# Engine calls (ADE's own usage rows) allowed today and in the last 7 days; 0 = no cap. Works headless.
+cap = { day = 0, week = 0 }
+
+#: How long a drafted card waits for a veto before it flies.
+[cards]
+# Days a drafted card (`ade card draft`) waits for a veto; 0 means it flies from tomorrow unless answered.
+# A draft made at or after 12:00 local time counts these days from tomorrow (next-morning rule; drafts only).
+accept = 0
+
+#: How long a lane may go silent before the watcher calls it stalled.
+[watch]
+# Minutes a lane log may stay silent before the watcher reads it as stalled (`ade wait --lane`, `ade watch`).
+stall = 10
+
+#: How long output is stored and how much of it is shown in full or as a short excerpt.
+[q]
+# The output store (.ade/q.sqlite): ade's own long output, and anything run as `ade q run -- CMD`, is kept whole
+# there and shown as its head, its tail, error-looking lines and a handle to page through it (`ade q show q17`).
+# Text within both caps prints whole.
+cap_lines = 200
+cap_bytes = 20000
+head = 40
+tail = 40
+page_lines = 200
+sql_rows = 200
+keep_days = 14
+# Claude Code's own cap on Bash output, written into .claude/settings.json env as BASH_MAX_OUTPUT_LENGTH when above
+# 0 and the file sets none. 0 leaves the platform's default, which already keeps very long output out of context.
+bash_chars = 0
+
+#: Which view shows the lanes while the board runs: the terminal alone or a mirror in another app.
+[cockpit]
+# mode: "cli" board only; "orca" also each lane in Orca (`ade watch <card>`, stops as status comments); "herdr" the same in herdr (stops as agent state); "auto" orca if running, else herdr.
+# band: the strip in one terminal as a loop starts: "terminal" every pilot, Claude Code too; "auto" only Codex/OpenCode; "off".
+mode = "cli"
+band = "terminal"
+
+#: Whether each engine call records the seat it ran with in its lane log.
+[report]
+seats = false  # true: each engine call first writes 'config: role engine model effort profile ... argv=...' to its lane log
+
+#: How ADE measures and prints each provider's share of the week and the plan behind it.
+[usage]
+# Your weekly share per provider: the fraction of each account's week the kit may use. The cockpit and status
+# line show each meter against it once that provider reports a week window; until then, "week not reported" and the kit's 7-day spend.
+share = { claude = 1.0, codex = 1.0, opencode = 1.0 }
+# Claude plan, for pricing a usage row into a fraction of the weekly meter: max20x, max5x or pro. The kit's fit
+# (ade/meter.json) was measured on Max 20x; the other plans scale it by weekly size in Pro-weeks (pro 1, max5x 5, max20x 10: a Pro week is 1/10 the size of a Max 20x week, so a Pro row is 10x the Max 20x share, max5x 2x).
+plan = "max20x"
+# How Claude usage is printed by ade telemetry, the status line and the cockpit: "dollars" (the cost in each row) or
+# "meter" (an estimated share of the weekly meter, priced by the meter model above), or "plan_dollars" (that share
+# times the plan's weekly price: monthly price * 12 / 52, so 10% of a week on a 200 dollar plan is about 4.62 dollars).
+# Other engines keep their wording. Claude's estimated shares count lanes only: they leave out attended sessions and
+# helper agents, which the real week reading includes.
+unit = "dollars"
+# Monthly US dollars per plan, for plan_dollars. Plans bill monthly on a fixed day, so a month holds 4 or 5 weekly
+# resets and x12/52 is the average.
+plan_price = { max20x = 200, max5x = 100, pro = 20 }
+# Path from the repo root to your own meter model (same shape as ade/meter.json); replaces the kit copy when set.
+# meter_model = "meter.json"
+
+# The roster: one source for .claude/agents/ade-<role>.md and AGENTS.md. Claude takes family aliases (opus, sonnet); model ids go verbatim to the CLI, so gpt-6.1-sol is a fixed id, not a "latest" alias.
+#: The pilot role: who flies the board, which engine and model it uses and what it may touch.
+[roles.pilot]
+provider = "claude"
+what = "Flies the board: picks cards, answers needs-judgement stops, decides, lands. Asks a person only through `ade decide --ask`, with a recommendation, a default and a deadline, so silence never stalls the board."
+models = { claude = "opus", codex = "gpt-6.1-sol", opencode = "openrouter/deepseek/deepseek-v4.1-flash", pi = "ollama/qwen3-coder" }
+# effort = { claude = "high", codex = "high", opencode = "high" }  # optional reasoning effort per engine; claude: low|medium|high|xhigh|max, codex: low|medium|high|xhigh, opencode: the model's variant names; unset: codex takes [providers.codex] default_effort, claude and opencode fall to the engine's own user config
+tools = "Read, Grep, Glob, Bash"
+
+#: The builder role: who builds one card, which engine and model it uses and what it may touch.
+[roles.builder]
+provider = "claude"
+what = "Builds one card in its lane: the smallest change that meets the card's done line."
+models = { claude = "sonnet", codex = "gpt-6.1-sol", opencode = "openrouter/deepseek/deepseek-v4.1-flash", pi = "ollama/qwen3-coder" }
+# effort = { claude = "high", codex = "high", opencode = "high" }  # optional reasoning effort per engine; claude: low|medium|high|xhigh|max, codex: low|medium|high|xhigh, opencode: the model's variant names; unset: codex takes [providers.codex] default_effort, claude and opencode fall to the engine's own user config
+tools = "Read, Edit, Write, Grep, Glob, Bash"
+# system_prompt = "roles/builder.system.md"  # any role; optional repo-relative file added to Claude Code's system prompt (codex and opencode: put at the top of the prompt); a missing file refuses
+# subagents = true  # any role; claude lanes cannot spawn subagents by default; true opts this seat back in
+
+#: The reviewer role: who reviews one lane's diff, which engine and model it uses and what it may touch.
+[roles.reviewer]
+provider = "claude"
+what = "Reviews one lane diff; answers APPROVE on the first line, or returns a patch."
+models = { claude = "sonnet", codex = "gpt-6.1-sol", opencode = "openrouter/deepseek/deepseek-v4.1-flash", pi = "ollama/qwen3-coder" }
+args = { opencode = ["--agent", "plan"] }  # any role: extra argv per engine; opencode's plan agent denies edits, so a reviewer returns its patch as text (a local-model reviewer edited files and still said APPROVE)
+# effort = { claude = "high", codex = "high", opencode = "high" }  # optional reasoning effort per engine; claude: low|medium|high|xhigh|max, codex: low|medium|high|xhigh, opencode: the model's variant names; unset: codex takes [providers.codex] default_effort, claude and opencode fall to the engine's own user config
+tools = "Read, Grep, Glob"
+# Profiles (none ship): voice, models, effort, args merged over the role for a card that uses one; `ade card add --profile NAME` picks it, else the first [profiles] select glob matching a card path. e.g.:
+# [roles.builder.profiles.docs]
+# voice = "roles/docs.voice.md"
+# models = { claude = "haiku" }
+# effort = { claude = "low" }
+# [profiles]
+# select = { "docs/*" = "docs" }
+
+#: Which optional parts of the kit are switched off in this project.
+[parts]
+# Parts switched off (`ade parts` lists them, `ade parts set orca=off` changes this); `ade init` skips the files an off
+# part generates. override.<id> holds the reason you went past a warning.
+off = []
+
+#: The reasons a project went past a warning about a part.
+[parts.override]
+
+# Every rule carries its reason; settings.json cannot hold comments, so the reason lives here.
+#: The permission modes ADE writes for your own sessions and for the lanes.
+[permissions]
+# The mode `ade init` writes for your own sessions. Empty leaves it to Claude Code's own default and your user
+# settings; set "acceptEdits", "bypassPermissions" or any mode Claude Code takes to pin it for the project.
+mode = ""
+# The mode lanes run in: "bypassPermissions" (default), "auto" (root needs it: Claude Code refuses bypassPermissions
+# as root, so `ade init` writes auto there) or "acceptEdits" (edits only; Bash limited to [permissions.allow]).
+lane_mode = "bypassPermissions"
+
+#: The commands agents may run without asking, each with its reason.
+[permissions.allow]
+"Bash(ade *)" = "the kit's own verbs; each writes its own record and refuses with a cure"
+"Bash(ade push*)" = "ade's own push: trunk, ade-records and [git] push_tags only, fast-forward only, never forced; raw git push stays unallowed"
+"Bash(git status*)" = "read-only repository state"
+"Bash(git diff*)" = "read-only; reviewers and builders read their own diff"
+"Bash(git log*)" = "read-only history"
+"Bash(python3 -m unittest*)" = "the configured test command; edit with [tests].command"
+
+#: The reads and commands agents are never allowed, each with its reason.
+[permissions.deny]
+"Read(./.env)" = "secrets are passed by path, never read"
+"Read(./.env.*)" = "secrets are passed by path, never read"
+"Bash(git push --force*)" = "history is never rewritten"
+"Bash(rm -rf *)" = "destructive; lanes are removed by `ade land`"

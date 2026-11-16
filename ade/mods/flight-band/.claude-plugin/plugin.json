@@ -1,0 +1,5 @@
+{
+  "name": "ade-flight-band",
+  "version": "0.1.0",
+  "description": "Shows the stages of the card ADE is flying (lane, build, review, test, land) above the prompt."
+}

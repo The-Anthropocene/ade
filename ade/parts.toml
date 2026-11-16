@@ -1,0 +1,67 @@
+# The parts catalogue: what can be switched off. Each part names the ade.toml keys it owns, the files `ade init`
+# generates for it, the parts it needs (turning off one of those breaks it) and the parts it leans on (it still
+# works without them, only worse). The airframe (cards, records, the driver) has no switch.
+
+[orca]
+group = "cockpit"
+what = "mirror each lane and stop into Orca; a display, never the driver"
+keys = ["cockpit.mode"]
+files = []
+needs = []
+leans-on = []
+
+[herdr]
+group = "cockpit"
+what = "mirror each lane and stop into herdr as agent state; a display, never the driver"
+keys = ["cockpit.mode"]
+files = ["ade/herdr.py"]
+needs = []
+leans-on = []
+
+[graph]
+group = "loop"
+what = "the file graph: briefs, test selection and the land check"
+keys = ["graph.out", "graph.exclude"]
+files = ["graph.json"]
+needs = []
+leans-on = []
+
+[review]
+group = "loop"
+what = "an adversarial review of each lane diff before land"
+keys = ["rigour.no_review"]
+files = []
+needs = []
+leans-on = ["graph"]
+
+[conductor]
+group = "loop"
+what = "`ade conduct`: route each stop of the loop without a person"
+keys = ["conduct.wakes", "conduct.wait"]
+files = []
+needs = ["review"]
+leans-on = ["orca"]
+
+[skill]
+group = "cockpit"
+what = "the generated ADE skill (.claude/skills/ade/SKILL.md and .agents/skills/ade/SKILL.md for Codex) telling an agent how to run and configure ADE"
+keys = []
+files = [".claude/skills/ade/SKILL.md", ".agents/skills/ade/SKILL.md"]
+needs = []
+leans-on = []
+
+[flight-band]
+group = "cockpit"
+what = "a band above the Claude Code prompt showing the flying card's stages, and a toast when it lands or parks; Claude Code only, Codex users keep ade cockpit --follow"
+keys = []
+files = [".claude/skills/ade-flight-band/.claude-plugin/plugin.json", ".claude/skills/ade-flight-band/hooks/hooks.json", ".claude/skills/ade-flight-band/hooks/register.ts"]
+needs = []
+leans-on = ["skill"]
+
+[mirror]
+group = "git"
+what = "keep a branch following trunk, by a generated GitHub workflow"
+keys = ["git.mirror"]
+files = [".github/workflows/ade-mirror.yml"]
+needs = []
+leans-on = []
