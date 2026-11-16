@@ -1,0 +1,7 @@
+graph.json text eol=lf
+.claude/settings.json text eol=lf
+.claude/agents/*.md text eol=lf
+AGENTS.md text eol=lf
+ade/starters/harness/*.ts text eol=lf
+.opencode/plugin/ade.ts text eol=lf
+.pi/extensions/ade.ts text eol=lf

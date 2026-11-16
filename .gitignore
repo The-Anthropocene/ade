@@ -1,0 +1,10 @@
+.ade/
+__pycache__/
+build/
+/dist/
+*.egg-info/
+.claude/settings.local.json
+site/dist/
+site/.wrangler/
+.codex/hooks.json
+.claude/skills/ade-flight-band/
