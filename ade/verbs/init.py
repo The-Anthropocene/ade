@@ -65,6 +65,14 @@ def _install(root, ctx, dry_run, seen=()):
     return changed + ([] if dry_run else [r for r in _write(root, install.plan(ctx), False, (*seen, *changed)) if r not in changed])
 
 
+def _identity(folder):
+    # git var asks for the identity the way git commit does, so GIT_AUTHOR_*/GIT_COMMITTER_* count as well as user.*.
+    for who in ("AUTHOR", "COMMITTER"):
+        if git(folder, "var", f"GIT_{who}_IDENT", check=False).returncode != 0:
+            refuse("init.refused", "git has no user name or email, so the first commit would fail after the files were written",
+                   'run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then `ade init`')
+
+
 def start(folder, starter, dry_run, args):
     files, card = starters.files(starter, folder.name)
     if dry_run:
@@ -72,11 +80,7 @@ def start(folder, starter, dry_run, args):
         print("\n".join(f"  {rel}" for rel in sorted(files)))
         print("plus the generated settings, agents, AGENTS.md and graph; nothing written")
         return 0
-    # git var asks for the identity the way git commit does, so GIT_AUTHOR_*/GIT_COMMITTER_* count as well as user.*.
-    for who in ("AUTHOR", "COMMITTER"):
-        if git(folder, "var", f"GIT_{who}_IDENT", check=False).returncode != 0:
-            refuse("init.refused", "git has no user name or email, so the first commit would fail after the files were written",
-                   'run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then `ade init`')
+    _identity(folder)
     if config.toplevel(folder) is None:
         git(folder, "init", "-q", "-b", "main")
     else:  # a folder where git init already ran keeps that branch as trunk
@@ -155,6 +159,8 @@ def run(args, cwd):
     if root is None:
         refuse("init.refused", f"{cwd} is not inside a git repository",
                "run `git init -b main` first, then `ade init`; or run `ade init` in an empty folder to start a project")
+    if not args.dry_run and not args.no_commit:
+        _identity(root)
     ctx = config.load_at(root)
     made = []
     if not (root / "ade.toml").is_file():
