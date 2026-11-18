@@ -6,6 +6,7 @@
 import shlex
 import fnmatch
 import hashlib
+import importlib.metadata
 import json
 import os
 import re
@@ -59,8 +60,11 @@ def kit():
     root = Path(__file__).resolve().parent.parent
     try:
         version = tomllib.loads(host.read(root / "pyproject.toml"))["project"]["version"]
-    except (OSError, KeyError, tomllib.TOMLDecodeError):
-        version = "unknown"
+    except (OSError, KeyError, tomllib.TOMLDecodeError):  # an installed wheel has no pyproject.toml: ask pip's metadata
+        try:
+            version = importlib.metadata.version("atlas-ade")
+        except importlib.metadata.PackageNotFoundError:
+            version = "unknown"
     commit = ""
     if (root / ".git").exists() and shutil.which("git"):  # no git on PATH (the demo's install leg): version alone
         head = git(root, "rev-parse", "--short", "HEAD", check=False)
