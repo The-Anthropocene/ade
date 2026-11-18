@@ -1,7 +1,7 @@
 # id: ade.providers
 # what: provider adapters (claude, codex, opencode, pi from config argv; fake built in) behind one call
 # cmd: -
-# reads: ade.toml [report] seats (a 'config:' line per call), [roles.<role>] system_prompt (a repo-relative file) and subagents, [providers] (default_effort, auto_compact_token_limit and context_window for codex, sandbox = "os" wraps a call in sandbox-exec or bwrap), [roles] (a card's [roles.<role>.profiles.<name>] over its role, picked by the card or [profiles] select), [permissions] allow/deny (deny with the Read and Grep rules of [guards] secrets) and [guards] secrets (claude and codex lanes, and the pass_env check), each provider's scrub_env (an engine with none takes the claude list plus lib/agent MARKERS), pass_env and secrets files (into its own call's environment only), Claude Code's user, project and local settings files (`ade config --seats`)
+# reads: [providers.<name>] cmd (which engines are on PATH, named in the missing-engine stop), ade.toml [report] seats (a 'config:' line per call), [roles.<role>] system_prompt (a repo-relative file) and subagents, [providers] (default_effort, auto_compact_token_limit and context_window for codex, sandbox = "os" wraps a call in sandbox-exec or bwrap), [roles] (a card's [roles.<role>.profiles.<name>] over its role, picked by the card or [profiles] select), [permissions] allow/deny (deny with the Read and Grep rules of [guards] secrets) and [guards] secrets (claude and codex lanes, and the pass_env check), each provider's scrub_env (an engine with none takes the claude list plus lib/agent MARKERS), pass_env and secrets files (into its own call's environment only), Claude Code's user, project and local settings files (`ade config --seats`)
 # writes: lane working tree (via the provider), .ade/records.jsonl (usage rows), .ade/lanes/<card>.log, .settings.json and .<role>.prompt.md (Pi reads its prompt as @file)
 import fnmatch
 import functools
@@ -542,7 +542,10 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
     sandbox = "claude" if lane and '"sandbox"' in host.read(lane) else None
     argv = argv_for(ctx, role, name, prompt, cwd, card, extra, lane)
     if not shutil.which(argv[0]):
-        refuse("provider.setup", f"{argv[0]} is not on PATH", f"install {argv[0]}, or set ADE_PROVIDER=fake to rehearse")
+        there = [n for n, v in ctx.cfg["providers"].items() if n != name and v.get("cmd") and shutil.which(v["cmd"][0])]
+        refuse("provider.setup", f"{argv[0]} is not on PATH",
+               f"{', '.join(there)} is on PATH: ADE_PROVIDER={there[0]} ade loop {card['id']} switches this run; `ade config roles` shows the lasting setting"
+               if there else "no engine is on PATH: `ade rehearse` runs the loop without one, or set ADE_PROVIDER=fake")
     argv, stdin = host.which(argv), None
     if spec.get("sandbox") == "os":
         guard = os_guard(ctx, cwd)  # no guard here: runs unwrapped, and `ade init` says so
