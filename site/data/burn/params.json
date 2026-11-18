@@ -52,6 +52,10 @@
     "meaning": "the five-hour meter reads 3.96x the weekly meter for the same usage",
     "status": "identified"
   },
+  "fableLimitShare": {
+    "value": 0.5,
+    "status": "identified 2026-11-18 from a weekly reset"
+  },
   "eras": [
     {
       "until": "2026-09-14T00:00:00Z",
