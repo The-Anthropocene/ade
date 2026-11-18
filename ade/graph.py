@@ -110,7 +110,7 @@ def ade_calls(text):
             if toks[:3] and PurePosixPath(toks[0].replace("\\", "/")).stem in ("python", "python3", "py") \
                     and toks[1:3] == ["-m", "ade"]:
                 toks = toks[2:]
-            if len(toks) > 1 and PurePosixPath(toks[0].replace("\\", "/")).stem == "ade" and re.match(r"[a-z]", toks[1]):
+            if len(toks) > 1 and PurePosixPath(toks[0].replace("\\", "/")).name in ("ade", "ade.exe", "ade.cmd", "ade.bat", "ade.ps1") and re.match(r"[a-z]", toks[1]):
                 out.append((n, toks[1:]))
     return out
 
