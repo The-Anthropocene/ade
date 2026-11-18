@@ -256,7 +256,7 @@ seats = false  # true: each engine call first writes 'config: role engine model 
 # Your weekly share per provider: the fraction of each account's week the kit may use. The cockpit and status
 # line show each meter against it once that provider reports a week window; until then, "week not reported" and the kit's 7-day spend.
 share = { claude = 1.0, codex = 1.0, opencode = 1.0 }
-# Claude plan, for pricing a usage row into a fraction of the weekly meter: max20x, max5x or pro. The kit's fit
+# Claude plan, for pricing a usage row into a fraction of the weekly meter: max20x (Ultra, formerly Max 20x), max5x or pro. The kit's fit
 # (ade/meter.json) was measured on Max 20x; the other plans scale it by weekly size in Pro-weeks (pro 1, max5x 5, max20x 10: a Pro week is 1/10 the size of a Max 20x week, so a Pro row is 10x the Max 20x share, max5x 2x).
 plan = "max20x"
 # How Claude usage is printed by ade telemetry, the status line and the cockpit: "dollars" (the cost in each row) or
