@@ -107,10 +107,10 @@ class GuardTest(FixtureCase):
         self.assertIsNone(self.code("git commit --amend"))
         # A recursive delete strictly inside the system temp folder is a builder's own scratch; the folder itself is not.
         tmp = tempfile.gettempdir().replace("\\", "/")  # what a Windows Bash user types
-        self.assertIsNone(self.code(f"rm -rf {tmp}/scratch"))
-        self.assertEqual(self.code(f"rm -rf {tmp}"), "guard.destructive")
-        self.assertEqual(self.code(f"rm -rf {tmp}/*"), "guard.destructive")
-        self.assertEqual(self.code(f"rm -rf {tmp}/../x"), "guard.destructive")
+        self.assertIsNone(self.code(f'rm -rf "{tmp}/scratch"'))
+        self.assertEqual(self.code(f'rm -rf "{tmp}"'), "guard.destructive")
+        self.assertEqual(self.code(f'rm -rf "{tmp}"/*'), "guard.destructive")
+        self.assertEqual(self.code(f'rm -rf "{tmp}"/../../x'), "guard.destructive")
         with mock.patch.dict(os.environ, {"TMPDIR": tmp}):
             self.assertIsNone(self.code("rm -rf ${TMPDIR}/a/b"))
             self.assertEqual(self.code("rm -rf $TMPDIR"), "guard.destructive")

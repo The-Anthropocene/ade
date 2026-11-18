@@ -55,7 +55,7 @@ class StagesTest(FixtureCase):
         # An always-run check as a script outside the repo; it runs in the lane, and on main when the lane is red.
         script = self.tmp / "check.py"
         script.write_text(body)
-        self.configure("always = []", f"always = ['{{python}} {script.as_posix()}']")
+        self.configure("always = []", f"always = ['{{python}} \"{script.as_posix()}\"']")
 
     def run_in(self, cwd, *argv):
         subprocess.run(argv, cwd=cwd, check=True, capture_output=True)
@@ -382,7 +382,7 @@ class StagesTest(FixtureCase):
         calc.write_text(calc.read_text() + "# mine\n")  # main shares a path with the lane: the first pass waits
         self.ade("loop", cid)
         self.git("checkout", "--", "app/calc.py")
-        lp = Path(self.rows("journal")[0]["note"].split()[-1])
+        lp = Path(self.rows("journal")[0]["note"].split(maxsplit=1)[1])
         (lp / "README.md").write_text("a fix nobody committed\n")
         code, out = self.ade("loop", cid)
         self.assertNotEqual(code, 0, out)

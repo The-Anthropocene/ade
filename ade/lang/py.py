@@ -35,7 +35,7 @@ def _names(name, text):
             out += [f"{base}.{a.name}" if base else a.name for a in node.names] + [base]
         elif isinstance(node, ast.Call) and _dotted(node.func).endswith("iter_modules") and node.args:
             # Discovery by folder (`iter_modules(ade.verbs.__path__)`) reaches every module there: a new verb file
-            # has no import naming it, so without this its callers' tests are never picked (28 Oct, card P1).
+            # has no import naming it, so without this its callers' tests are never picked.
             where = _dotted(node.args[0])
             if where == "__path__" or where.endswith(".__path__"):
                 out.append((pkg if where == "__path__" else where[:-9]) + ".*")

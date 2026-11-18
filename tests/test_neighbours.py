@@ -1,5 +1,5 @@
 # id: tests.test_neighbours
-# what: neighbour check: kit code never touches tmux, AtlasScratch, launchd, brew, a bare pip install or the user's ~/.claude/settings.json
+# what: neighbour check: kit code never touches tmux, launchd, brew, a bare pip install or the user's ~/.claude/settings.json
 # cmd: python3 -m unittest tests/test_neighbours.py
 # reads: ade/**/*.py, bin/ade
 # writes: nothing
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 RULES = [
     ("tmux", re.compile(r"tmux")),
-    ("/Volumes/AtlasScratch", re.compile(r"/Volumes/AtlasScratch")),
+    ("/Volumes/", re.compile(r"/Volumes/")),
     ("launchctl/launchd", re.compile(r"launchctl|launchd")),
     ("brew install", re.compile(r"brew\s+install")),
     ("pip install outside a venv or --target",

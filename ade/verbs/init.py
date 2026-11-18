@@ -72,8 +72,19 @@ def start(folder, starter, dry_run, args):
         print("\n".join(f"  {rel}" for rel in sorted(files)))
         print("plus the generated settings, agents, AGENTS.md and graph; nothing written")
         return 0
+    # git var asks for the identity the way git commit does, so GIT_AUTHOR_*/GIT_COMMITTER_* count as well as user.*.
+    for who in ("AUTHOR", "COMMITTER"):
+        if git(folder, "var", f"GIT_{who}_IDENT", check=False).returncode != 0:
+            refuse("init.refused", "git has no user name or email, so the first commit would fail after the files were written",
+                   'run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then `ade init`')
     if config.toplevel(folder) is None:
         git(folder, "init", "-q", "-b", "main")
+    else:  # a folder where git init already ran keeps that branch as trunk
+        here = git(folder, "symbolic-ref", "-q", "--short", "HEAD", check=False).stdout.strip()
+        if here:
+            line = survey.apply('main = "main"', {"main": here})  # the toml holds only non-default keys
+            toml = files["ade.toml"]
+            files["ade.toml"] = toml.replace("[git]\n", f"[git]\n{line}\n", 1) if "[git]\n" in toml else f"{toml}\n[git]\n{line}\n"
     wrote = _write(folder, sorted(files.items()), False)
     ctx = _pick(args, folder)
     _install(folder, ctx, False, wrote)

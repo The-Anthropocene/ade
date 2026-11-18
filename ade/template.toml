@@ -184,6 +184,7 @@ sandbox = "os"
 # Pi (--mode json) reads the prompt as @file: {prompt_file} is .ade/lanes/<card>.<role>.prompt.md, written per call, since a Windows .cmd launcher cuts argv at the first newline. -e names the lane's ADE extension on the command line, so Pi loads it with no project-trust decision; no --approve, which stays the person's own opt-in.
 cmd = ["pi", "-p", "--mode", "json", "--no-session", "-e", ".pi/extensions/ade.ts", "--model", "{model}", "@{prompt_file}", "Work the card above."]
 timeout = 1800
+stall = 900  # Pi --mode json streams events as it goes, so a log-growth stall bound works; 900 s matches opencode's
 sandbox = "os"
 
 #: How a lane's diff is reviewed, and by which engine.

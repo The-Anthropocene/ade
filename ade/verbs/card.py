@@ -5,7 +5,7 @@
 # writes: .ade/records.jsonl (card rows; a held card also gets its park question)
 import re
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from ade import config, graph, providers, q, records, stages
 from ade.gitx import git
@@ -84,7 +84,7 @@ def draft(ctx, sentence):
                          | ({"proofs": got["PROOF"]} if got["PROOF"] else {}), prefix="c")
     # Next-morning rule: a draft made at or after midday counts its veto window from tomorrow,
     # so an evening draft with accept = 0 gets about a day, not minutes. Drafts only; decide's deadlines stay.
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     base = now.date() + timedelta(days=1 if now.hour >= 12 else 0)
     deadline = (base + timedelta(days=int(ctx.cfg.get("cards", {}).get("accept", 0)))).isoformat()
     ask = records.append(ctx, "decision", {"text": f"{row['id']} drafted from: {sentence}", "paths": [], "kind": "question",
@@ -177,7 +177,7 @@ def run(args, cwd):
         if c["status"] == "landed" and not c.get("every"):
             refuse("card.close", f"{c['id']} is landed, so there is nothing to close", f"ade card show {c['id']}")
         records.append(ctx, "card", {"id": c["id"], "status": "closed", "closed_why": args.why,
-                                     "closed_by": who(), "retired": True, "closed_at": date.today().isoformat()})
+                                     "closed_by": who(), "retired": True, "closed_at": records.today().isoformat()})
         decide.drop_lane(ctx, c["id"])
         print(f"{c['id']} closed: {args.why}")
     elif args.action == "paths":
@@ -190,7 +190,7 @@ def run(args, cwd):
         print(f"{c['id']} paths: {', '.join(paths)}")
     elif args.action == "snooze":
         c, until = stages.card(ctx, args.id, theirs=True), when(args.until)
-        if not c.get("every") or until <= date.today():
+        if not c.get("every") or until <= records.today():
             refuse("card.snooze", f"{args.id} is not a recurring card, or {until} is not after today",
                    "a one-off card is held (ade card add --hold) or closed (ade card close <id> --why ...)")
         records.append(ctx, "card", {"id": c["id"], "due": until.isoformat()})

@@ -35,7 +35,7 @@ def policy(ctx, paths):
 
 def approves(text):
     """True only when the first line is APPROVE itself, alone or followed by punctuation: "APPROVE is not warranted"
-    starts with the word and is a refusal (the first two-lane run, 28 Oct, landed one as an approval)."""
+    starts with the word and is a refusal (one such answer once landed as an approval)."""
     lines = text.strip().splitlines() or [""]
     if re.match(r"approved?(\W*$|\s*[.!:,;\u2014-])", lines[0].strip(" *_`#"), re.I):
         return True
@@ -304,6 +304,8 @@ def run(ctx, c):
     patch = patch_of(text)
     if patch is None:
         record(ctx, c, {**row, "tree": t, "result": "changes", "text": text[-4000:]})
+        if re.search(r'<function=|<tool_call>|"tool_calls"', text):
+            return Result("needs-judgement", "the reviewer's answer was a raw tool call its engine did not run; the reviewer model likely does not handle tool calls in this mode; pick a reviewer model that does", cure)
         return Result("needs-judgement", "the review answered neither APPROVE nor a patch", cure)
     env = patch.startswith("*** Begin Patch")
     patch = patch if env else without(patch, ctx.cfg["graph"]["out"])

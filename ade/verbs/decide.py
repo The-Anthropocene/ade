@@ -80,7 +80,7 @@ def review_date(d):
 
 def waiting(ctx, today=None):
     """Live rulings that wait on a person: from 7 days before the review date on. They still govern; nothing stops."""
-    cut = ((today or date.today()) + timedelta(days=WARN_DAYS)).isoformat()
+    cut = ((today or records.today()) + timedelta(days=WARN_DAYS)).isoformat()
     return sorted((d for d in book(ctx) if review_date(d) <= cut), key=lambda d: int(d["id"][1:]))
 
 
@@ -95,12 +95,12 @@ def waiting_line(ctx):
 
 def reviewed(s):
     """The review date a new ruling stores: --review DATE|Nd, else 90 days on."""
-    return (when(s) if s else date.today() + timedelta(days=REVIEW_DAYS)).isoformat()
+    return (when(s) if s else records.today() + timedelta(days=REVIEW_DAYS)).isoformat()
 
 
 def when(s):
     try:
-        return (date.today() + timedelta(days=int(s[:-1]))) if s.endswith("d") else date.fromisoformat(s)
+        return (records.today() + timedelta(days=int(s[:-1]))) if s.endswith("d") else date.fromisoformat(s)
     except ValueError:
         refuse("decide.incomplete", f"cannot read deadline {s!r}", "use --by 2026-11-02 or --by 7d")
 
@@ -113,7 +113,7 @@ def state(d, today=None):
         return "answered"
     if not d.get("default") or not d.get("deadline"):
         return "open"  # no default or no deadline: silence never answers it
-    return "defaulted" if (today or date.today()) > date.fromisoformat(d["deadline"]) else "open"
+    return "defaulted" if (today or records.today()) > date.fromisoformat(d["deadline"]) else "open"
 
 
 def line(d, today=None):
@@ -153,7 +153,7 @@ def undelivered(ctx, card):
 def parked_days(ctx, card, today=None):
     """How many days running, ending today, the card has stopped parked or needing judgement."""
     days = {r["at"][:10] for r in records.read(ctx, "journal") if r["card"] == card and r.get("outcome") in ("parked", "needs-judgement")}
-    n, day = 0, today or date.today()
+    n, day = 0, today or records.today()
     while day.isoformat() in days:
         n, day = n + 1, day - timedelta(days=1)
     return n
@@ -230,8 +230,9 @@ def import_rulings(ctx, file):
             skipped += 1
             continue
         row = records.append(ctx, "decision", {"text": r["text"], "paths": r.get("paths", []), "kind": "ruling",
-                                               "source": str(r["source"]), "date": r.get("date") or date.today().isoformat(),
-                                               "review": (date.today() + timedelta(days=REVIEW_DAYS)).isoformat(), **answerer()}, prefix="d")
+                                               "source": str(r["source"]), "date": r.get("date") or records.today().isoformat(),
+                                               "review": (records.today() + timedelta(days=REVIEW_DAYS)).isoformat(), **answerer()}, prefix="d",
+                              guard=lambda: fit(ctx, 1))
         have[row["source"]] = row["id"]
         added += 1
     print(f"imported {added}, skipped {skipped}")
@@ -263,7 +264,7 @@ def accepts(d, text):
 
 def answer(ctx, d, text):
     """Record the answer to question d; a drop answer also closes its card. Both --answer and --desk come here."""
-    records.append(ctx, "decision", {"id": d["id"], "answer": text, "answered": date.today().isoformat(), **answerer()})
+    records.append(ctx, "decision", {"id": d["id"], "answer": text, "answered": records.today().isoformat(), **answerer()})
     print(f"{d['id']} answered: {text}")
     if d.get("rec") == "land" and text.lower().startswith("land") and answerer()["by"] == "agent":
         own = "ade/install.py" in (d.get("paths") or [])  # the card's own generator rendered protected files
@@ -275,7 +276,7 @@ def answer(ctx, d, text):
         c = records.merged(ctx, "card").get(d["card"])
         if c and c["status"] not in ("landed", "closed"):  # a vetoed card must not fly again
             records.append(ctx, "card", {"id": c["id"], "status": "closed", "closed_why": f"dropped: answer to {d['id']}",
-                                         "closed_by": answerer()["by"], "retired": True, "closed_at": date.today().isoformat()})
+                                         "closed_by": answerer()["by"], "retired": True, "closed_at": records.today().isoformat()})
             print(f"{c['id']} closed: dropped: answer to {d['id']}")
 
 
@@ -289,23 +290,23 @@ def review_answer(ctx, d, text):
             if who_ != "person" and not agent:
                 refuse("decide.incomplete", f"{d['id']} is a proposal; only the person makes a standing ruling stand",
                        f"tell them it waits (`ade decide --desk`); {d['id']} governs nothing until then")
-            records.append(ctx, "decision", {"id": d["id"], "proposed": False, "stood": date.today().isoformat(),
+            records.append(ctx, "decision", {"id": d["id"], "proposed": False, "stood": records.today().isoformat(),
                                              "stood_by": "person" if who_ == "person" else "agent",
-                                             "review": (date.today() + timedelta(days=REVIEW_DAYS)).isoformat()})
+                                             "review": (records.today() + timedelta(days=REVIEW_DAYS)).isoformat()})
             print(f"{d['id']} stands for every card, stood by {'person' if who_ == 'person' else 'agent'}")
         elif head.strip().lower() == "drop" and sep and rest.strip():
-            records.append(ctx, "decision", {"id": d["id"], "retired": date.today().isoformat(), "retired_by": who_, "why": rest.strip()})
+            records.append(ctx, "decision", {"id": d["id"], "retired": records.today().isoformat(), "retired_by": who_, "why": rest.strip()})
             print(f"{d['id']} dropped: {rest.strip()}")
         else:
             refuse("decide.incomplete", f"{d['id']} is a proposal; {text!r} is not an answer it reads: the answers are stand and drop: WHY",
                    f'answer with one of: ade decide --answer {d["id"]} stand (the person) | ade decide --answer {d["id"]} "drop: WHY"')
         return True
     if text.strip().lower().rstrip(".") == "keep":
-        records.append(ctx, "decision", {"id": d["id"], "review": (date.today() + timedelta(days=REVIEW_DAYS)).isoformat(),
-                                         "kept": date.today().isoformat(), "kept_by": answerer()["by"]})
+        records.append(ctx, "decision", {"id": d["id"], "review": (records.today() + timedelta(days=REVIEW_DAYS)).isoformat(),
+                                         "kept": records.today().isoformat(), "kept_by": answerer()["by"]})
         print(f"{d['id']} kept: next review in {REVIEW_DAYS} days")
     elif head.strip().lower() == "retire" and sep and rest.strip():
-        records.append(ctx, "decision", {"id": d["id"], "retired": date.today().isoformat(), "retired_by": who(), "why": rest.strip()})
+        records.append(ctx, "decision", {"id": d["id"], "retired": records.today().isoformat(), "retired_by": who(), "why": rest.strip()})
         print(f"{d['id']} retired: {rest.strip()}")
     else:
         refuse("decide.incomplete", f"{d['id']} is due for review; {text!r} is not an answer it reads: the answers are keep and retire: WHY",
@@ -374,7 +375,7 @@ def run(args, cwd):
         if d is None or state(d) != "ruling" or not args.why or (args.superseded_by and args.superseded_by not in decs):
             refuse("decide.incomplete", f"{args.retire} is not a live ruling, the --why is missing, or --superseded-by names no decision",
                    "ade decide --list, then: ade decide --retire d2 --why \"what changed\" [--superseded-by d9]")
-        records.append(ctx, "decision", {"id": args.retire, "retired": date.today().isoformat(), "retired_by": who(),
+        records.append(ctx, "decision", {"id": args.retire, "retired": records.today().isoformat(), "retired_by": who(),
                                          "why": args.why, **({"superseded_by": args.superseded_by} if args.superseded_by else {})})
         print(f"{args.retire} retired: {args.why}")
         return 0
@@ -434,13 +435,13 @@ def run(args, cwd):
     if len(args.text) > 400:
         refuse("decide.incomplete", f"a ruling is at most 400 characters; this one is {len(args.text)}",
                "keep the rule in 400 characters; the story behind it goes in the card, the commit or the docs")
-    fit(ctx, 1, int(args.standing))
+    guard = lambda: fit(ctx, 1, int(args.standing))  # read again under the write lock
     if args.standing:
         who_ = answerer()
         prop = who_["by"] != "person"  # an agent or a caller ADE cannot place only proposes
         row = records.append(ctx, "decision", {"text": args.text, "paths": [], "kind": "ruling", "standing": True, "review": reviewed(args.review), **who_,
-                                               **({"proposed": True, "review": date.today().isoformat()} if prop else {})}, prefix="d")
+                                               **({"proposed": True, "review": records.today().isoformat()} if prop else {})}, prefix="d", guard=guard)
         print(f"{row['id']} is proposed: it governs nothing until the person answers stand (ade decide --desk)" if prop else f"{row['id']} stands for every card")
         return 0
-    row = records.append(ctx, "decision", {"text": args.text, "paths": args.path, "kind": "ruling", "review": reviewed(args.review), **answerer()}, prefix="d")
+    row = records.append(ctx, "decision", {"text": args.text, "paths": args.path, "kind": "ruling", "review": reviewed(args.review), **answerer()}, prefix="d", guard=guard)
     print(f"{row['id']} governs {', '.join(args.path)}")

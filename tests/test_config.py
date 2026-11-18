@@ -79,7 +79,7 @@ class MainWorktree(unittest.TestCase):
             card = {"id": "c1", "paths": []}
             line = providers.seat_line(ctx0, "builder", "claude", card,
                                        providers.argv_for(ctx0, "builder", "claude", "do\nit", d, card), {}, "do\nit")
-        fmt = r"config: \S+ \S+ \S+ \S+ \S+ system_prompt=([0-9a-f]{8}|none) ttl=\S+ settings=\S+ argv=.+"
+        fmt = r"config: \S+ \S+ \S+ \S+ \S+ system_prompt=([0-9a-f]{8}|none) ttl=\S+ settings=.+? argv=.+"
         self.assertRegex(line, "^" + fmt + "\n$")
         self.assertNotIn("do\nit", line)
         for role in ctx0.cfg["roles"].values():
@@ -89,8 +89,8 @@ class MainWorktree(unittest.TestCase):
         self.assertNotIn("sk-1", seats)
         self.assertIn("MAX_THINKING_TOKENS (changes behaviour)", seats)
         self.assertRegex(seats, r"conflict: host env sets MAX_THINKING_TOKENS=9; scrub_env drops it")
-        self.assertRegex(seats, r"conflict: \S+settings.json sets model haiku; ADE's --model \S+ overrides it")
-        self.assertRegex(seats, r"conflict: \S+settings.json env sets MAX_THINKING_TOKENS")
+        self.assertRegex(seats, r"conflict: .+settings.json sets model haiku; ADE's --model \S+ overrides it")
+        self.assertRegex(seats, r"conflict: .+settings.json env sets MAX_THINKING_TOKENS")
         # Also guards `ade config --probe`: under the fake provider every role answers, a line each, exit 0, no spend.
         with tempfile.TemporaryDirectory() as d, mock.patch.dict("os.environ", dict(ADE_PROVIDER="fake")), \
                 mock.patch("builtins.print") as out:

@@ -17,7 +17,6 @@ import subprocess
 import sys
 import time
 import tomllib
-from datetime import date
 from pathlib import Path
 
 from ade import config, guard, host, install, records, telemetry
@@ -490,19 +489,22 @@ def call(ctx, role, prompt, cwd, card, *a, **kw):
     prompt += "".join(f"\n\na question on this card was answered: {d['text']} -> " + (d["answer"] if "answer" in d else f"{d['default']} (the default that applied)") for d in qs)
     out = _call(ctx, role, prompt, cwd, card, *a, **kw)
     for d in qs:
-        records.append(ctx, "decision", {"id": d["id"], "reworked": date.today().isoformat()})
+        records.append(ctx, "decision", {"id": d["id"], "reworked": records.today().isoformat()})
     return out
 
 
 UNHOOKED = {}  # card id -> the engine whose last builder call left no start-hook mark (read by the build stage)
 NAMED = {}  # card id -> True when that engine is already named in a role's models (init has written its hooks)
+BACKGROUNDED = {}  # card id -> jobs whose background_wait ended the last builder call
 
 
 def unhooked(card_id):
-    """The line the build stage appends when the card's last builder call ran without ADE's hooks, else ''."""
+    """The build stage's notes about backgrounded jobs and missing hooks from its last builder call."""
+    bg = BACKGROUNDED.get(card_id)
+    note = f"; opencode moved {bg} to the background; ADE ended the call" if bg else ""
     name = UNHOOKED.get(card_id)
     if not name:
-        return ""
+        return note
     if name == "codex":
         fix = "accept codex's one-time hook trust"
     elif NAMED.get(card_id):  # the engine is already in the roles: init wrote its hook file, so check that
@@ -510,7 +512,7 @@ def unhooked(card_id):
         fix = f"check {name}'s hook settings in {hook_file}, then rerun `ade init`"
     else:
         fix = f"name {name} in a role's models in ade.toml, then rerun `ade init`"
-    return f"; ADE's hooks did not run in that lane ({name} left no start mark): {fix}"
+    return note + f"; ADE's hooks did not run in that lane ({name} left no start mark): {fix}"
 
 
 def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
@@ -518,6 +520,8 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
     `usage` row from the provider's own report (telemetry.parse), so spend is counted where it happens. `extra`
     is argv appended after the template's (fork_args pieces, with {session} filled by the caller)."""
     name, started, prof = engine(ctx, role, name, card), time.monotonic(), profile(ctx, card)
+    if role == "builder":
+        BACKGROUNDED.pop(card["id"], None)
     if name == "fake":
         text = _fake(role, cwd, card, prompt) + (f"fake: session {session}\n" if session else "")
         with host.opentext(log_path(ctx, card["id"], role, name), "a") as f:
@@ -582,22 +586,39 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
         job = host.job_new(proc)  # Windows: the engine's tree lives in a Job Object, ended below (None elsewhere)
         # Besides the timeout, ade watches the lane log's size: no new byte for `stall` seconds (0 = off) is a silent engine.
         stall, begun, seen, grew, silent = spec.get("stall", 0), time.monotonic(), start, time.monotonic(), False
+        scanned, bg = start, None  # opencode 2.x: a background_wait event means the answer is in and a moved job keeps the process alive
         try:
             while True:
                 left = timeout - (time.monotonic() - begun)
                 if left <= 0:
                     raise subprocess.TimeoutExpired(argv, timeout)
                 try:
-                    out, err = proc.communicate(stdin, timeout=min(left, 1) if stall else left)
+                    out, err = proc.communicate(stdin, timeout=min(left, 1) if stall or name == "opencode" else left)
                     break
                 except subprocess.TimeoutExpired:
                     stdin = None  # communicate keeps what it was given
                     size = os.fstat(log.fileno()).st_size
                     if size != seen:
                         seen, grew = size, time.monotonic()
+                        if name == "opencode":
+                            bg, scanned = _background_wait(log_path(ctx, card["id"]), scanned)
+                            if bg is not None:
+                                break
                     elif stall and time.monotonic() - grew >= stall:
                         silent = True
                         raise
+            if bg is not None:  # end the group now; what the model answered and edited stays
+                if os.name == "nt":
+                    if job:
+                        host.job_end(job)
+                else:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                proc.kill()
+                out, err = proc.communicate()
+                proc.returncode = 0
             r = subprocess.CompletedProcess(argv, proc.returncode, out, err)
             # A normal exit ends the group too: a leftover child would hold the lane's git lock.
             if os.name == "nt":
@@ -640,8 +661,12 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
                          {"failed": "log missing"}, profile=prof)
         refuse("provider.failed", f"{name} finished but the lane log .ade/lanes/{card['id']}.log is gone (moved by another run's land?)",
                f"`ade loop {card['id']}`")
+    if name == "pi":
+        _trim_pi_log(log_path(ctx, card["id"]), start)
     _keep_stderr(ctx, card, r.stderr)  # after the read-back: telemetry and the capacity check read stdout alone
     text, fields = telemetry.parse(r.stdout)
+    if bg is not None and role == "builder":
+        BACKGROUNDED[card["id"]] = bg
     telemetry.note(ctx, "claude", "lane stream", fields.pop("limits", None))
     # A lane given CLAUDE_CODE_PROMPT_CACHE_TTL=1h (pass_env) writes 1-hour cache on purpose, so that is no sign.
     if name == "claude" and "ANTHROPIC_API_KEY" in spec.get("secrets", {}) and fields.get("cache_write_1h", 0) > 0 \
@@ -675,6 +700,51 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
         written = config.merge(tomllib.loads(host.read(config.TEMPLATE)), tomllib.loads(host.read(ctx.root / "ade.toml")))
         NAMED[card["id"]] = name in install.engines(config.Ctx(ctx.root, written))  # ade.toml as written, not this run's --model
     return text
+
+
+def _is_update(line):
+    if b'"message_update"' not in line:
+        return False
+    try:
+        return json.loads(line).get("type") == "message_update"
+    except (ValueError, AttributeError):
+        return False
+
+
+def _trim_pi_log(path, start):
+    """Pi's --mode json repeats the whole partial message in every message_update, so a long lane's log grows quadratically:
+    once the call is read, rewrite its bytes (from start) without those lines; every other line stays, in order."""
+    try:
+        with open(path, "r+b") as f:
+            f.seek(start)
+            lines = f.read().splitlines(keepends=True)
+            keep = [l for l in lines if not _is_update(l)]
+            if len(keep) < len(lines):
+                f.seek(start)
+                f.write(b"".join(keep))
+                f.truncate()
+    except OSError:
+        pass  # the log moved or is unwritable: the full log stays, nothing is lost
+
+
+def _background_wait(path, offset):
+    """(job, new offset): the job a `background_wait` JSON line (from offset on) names, else None."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(offset)
+            data = f.read()
+    except OSError:
+        return None, offset
+    end = data.rfind(b"\n") + 1  # whole lines only
+    for line in data[:end].decode("utf-8", "replace").splitlines():
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get("type") == "background_wait":
+            names = [j.get("title") or j.get("id") for j in obj.get("jobs", []) if isinstance(j, dict)]
+            return ", ".join(n for n in names if isinstance(n, str) and n) or "a command", offset + end
+    return None, offset + end
 
 
 def _fake(role, cwd, card, prompt=""):

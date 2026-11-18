@@ -3,6 +3,8 @@
 # cmd: ade parts [set ID=off|on [--why REASON]]
 # reads: ade/parts.toml, ade.toml [parts]
 # writes: ade.toml [parts] (set only)
+import tomllib
+
 from ade import config, host, parts
 from ade.refuse import refuse
 
@@ -34,6 +36,14 @@ def run(args, cwd):
         now_off.discard(pid)
         why.pop(pid, None)
     f = ctx.root / "ade.toml"
-    host.write(f, parts.rewrite(host.read(f) if f.is_file() else "", now_off, why))
+    new = parts.rewrite(host.read(f) if f.is_file() else "", now_off, why)
+    try:  # an indented or dotted [parts] the rewrite cannot place would leave a second table: refuse before writing
+        ok = set(tomllib.loads(new)["parts"]["off"]) == now_off
+    except (tomllib.TOMLDecodeError, KeyError):
+        ok = False
+    if not ok:
+        refuse("parts.set", "ade.toml's [parts] is written in a form `parts set` cannot edit safely",
+               "write it as a plain `[parts]` header at line start with `off = [...]`, then rerun")
+    host.write(f, new)
     print(f"{pid} is {state}; wrote ade.toml")
     return 0

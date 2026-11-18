@@ -81,12 +81,15 @@ def commands(cfg, g, chosen):
 def _run(ctx, argv, cwd):
     limit = ctx.cfg["tests"]["timeout"]
     try:
-        r = subprocess.run(host.which(argv), cwd=cwd, capture_output=True, text=True, timeout=limit)
+        r = subprocess.run(host.which(argv), cwd=cwd, capture_output=True, timeout=limit)
+    except OSError as e:
+        # A test command that cannot start is a red run that names it, not a traceback.
+        return 127, f"{shlex.join(argv)} could not start: {e}\n"
     except subprocess.TimeoutExpired as e:
         # A hang is a red run with the command named, not a crash of the loop.
         got = [x.decode(errors="replace") if isinstance(x, bytes) else x or "" for x in (e.stdout, e.stderr)]
         return 124, "".join(got) + f"\nthe run passed the tests timeout of {limit} seconds: {shlex.join(argv)}\n"
-    return r.returncode, r.stdout + r.stderr
+    return r.returncode, (r.stdout + r.stderr).decode("utf-8", errors="replace")  # bytes that are not UTF-8 become U+FFFD
 
 
 EMPTY = re.compile(r"Ran 0 tests|NO TESTS RAN|no tests ran|collected 0 items", re.I)
@@ -246,14 +249,14 @@ def run(ctx, c):
         argv = host.substitute(template, **vals)
         began = time.monotonic()
         code, out = _run(ctx, argv, lp)
-        if code and timing.search(out):
+        if code and code != 124 and timing.search(out):  # 124 is the tests timeout: a hang costs one, not two
             retried.append(shlex.join(argv))  # one isolated retry for a timing-shaped failure, never more
             code, out = _run(ctx, argv, lp)
         # Each command's own time and result, so a typecheck's share of the stage (and which command failed) shows.
         walls[shlex.join(template)] = round(time.monotonic() - began, 2)
         results[shlex.join(template)] = "fail" if code else "pass"
         tail = _tail(argv, out)
-        if code and red_on_main(ctx, argv, lp, out, template):
+        if code and code != 127 and red_on_main(ctx, argv, lp, out, template):
             carried.append({"test": shlex.join(template), "tail": tail[-1000:]})  # main is red too: carry, don't block
         elif code:
             # The whole failure goes to the store; the record and the screen get its head, tail and handle.

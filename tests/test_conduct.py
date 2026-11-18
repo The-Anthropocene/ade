@@ -4,7 +4,7 @@
 # reads: tests/fixture_repo
 # writes: temporary directories only
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 from unittest import mock
 
 from ade import config, route  # noqa: F401  (route imported so the graph records coverage)
@@ -166,7 +166,7 @@ class ConductTest(FixtureCase):
         self.ade("card", "add", "note the calc contract again", "--path", "app/calc.py", "--done", "comment added")
         ctx = config.load(str(self.repo))
         ctx.cfg["conduct"]["answerer"] = "agent"  # and the agent answerer is named, its own id too
-        reset = date.today() + timedelta(days=3)
+        reset = records.today() + timedelta(days=3)
         records.append(ctx, "share", {"provider": "codex", "over": True, "until": reset.isoformat() + "T00:00:00+00:00"})
         meter = ("codex", "50%", 0.1, True)
         card = records.merged(ctx, "card")["c3"]
@@ -245,7 +245,7 @@ class ConductTest(FixtureCase):
         q = next(d for d in records.merged(ctx, "decision").values() if d.get("rec") == "land")
         self.assertEqual((q["default"], q["card"]), ("", "c1"))
         self.assertNotEqual(records.merged(ctx, "card")["c1"].get("status"), "landed")
-        self.assertEqual(decide.state(q, date.today() + timedelta(days=7)), "open")
+        self.assertEqual(decide.state(q, records.today() + timedelta(days=7)), "open")
         self.assertTrue(conduct.waiting(ctx, records.merged(ctx, "card")["c1"]))
         # Also guards: an answer that is neither 'land' nor 'rework: TEXT' (a bare 'rework') keeps the card down and
         # a loop on it does not land it, but asks again.
@@ -297,10 +297,10 @@ class ConductTest(FixtureCase):
         self.assertIn('follow_stop = "day"', base)
         for mode, survives in (("day", False), ("never", True)):
             toml.write_text(base.replace('follow_stop = "day"', f'follow_stop = "{mode}"'))
-            real, tomorrow = date.today(), date.today() + timedelta(days=1)
-            clock = mock.Mock(wraps=date)
-            clock.today.side_effect = lambda: tomorrow if clock.today.call_count > 3 else real
-            with mock.patch.object(conduct, "date", clock), mock.patch("time.sleep"):
+            real = records.today()
+            tomorrow = real + timedelta(days=1)
+            clock = mock.Mock(side_effect=lambda: tomorrow if clock.call_count > 3 else real)
+            with mock.patch.object(records, "today", clock), mock.patch("time.sleep"):
                 code, out = self.ade("conduct", "--follow", "--rounds", "3")
             self.assertEqual("3 rounds done" in out, survives, out)
             self.assertEqual("a new day began" in out, not survives, out)

@@ -50,16 +50,20 @@ If the generated files are stale, the diff is not clean and the test stage fails
 
 ## Hear about stops without watching
 
-`ade conduct --follow --json` prints one JSON line per stop. Pipe it to your own notifier and filter on `outcome`; the ones worth a message are `park` and `needs-judgement`:
+`ade conduct --follow --json` prints one JSON line for each card it parks, among its ordinary progress lines. Pipe it to your own notifier, skip what is not JSON and filter on `outcome`, which reads `parked`:
 
 ```sh
 ade conduct --follow --json | python -c '
 import json, sys
 for line in sys.stdin:
+    if not line.startswith("{"):
+        continue  # a progress line, not a stop
     row = json.loads(line)
-    if row.get("outcome") in ("park", "needs-judgement"):
+    if row.get("outcome") == "parked":
         print(line.strip(), flush=True)  # replace with your own mail, chat or push call
 '
 ```
+
+The line carries the card, the stage, the next command and the open question with its recommendation, default and deadline.
 
 Nothing in the kit sends messages; the notifier is yours.

@@ -1,6 +1,6 @@
 ﻿{
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"], }, /* the alias Cipher uses */
+    "paths": { "@/*": ["./src/*"], }, /* the alias a real project uses */
   },
 }

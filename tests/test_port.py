@@ -16,7 +16,7 @@ from tests.helpers import FixtureCase
 class PortTest(FixtureCase):
     def setUp(self):
         super().setUp()
-        # Cipher's trunk is master, and its dependencies are a gitignored folder no worktree checks out.
+        # A real project's trunk is master, and its dependencies are a gitignored folder no worktree checks out.
         self.git("branch", "-m", "master")
         (self.repo / ".gitignore").write_text("vendor/\n")
         (self.repo / "vendor").mkdir()
@@ -37,7 +37,7 @@ class PortTest(FixtureCase):
         self.git("commit", "-qm", "install ade")
 
     def test_unshare_removes_the_link_and_keeps_its_target_and_on_windows_without_symlink_rights_a_junction(self):
-        # CI runners are admins, so os.symlink works there; Connor's PC without developer mode takes the junction branch.
+        # CI runners are admins, so os.symlink works there; a Windows machine without developer mode takes the junction branch.
         self.install_sharing()
         junction = mock.patch("os.symlink", side_effect=OSError("symlinks need developer mode"))
         for i, links in enumerate([contextlib.nullcontext()] + ([junction] if os.name == "nt" else [])):

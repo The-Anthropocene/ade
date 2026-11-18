@@ -161,7 +161,7 @@ class Push(FixtureCase):
         bin_dir.mkdir()
         gh = bin_dir / "gh"
         gh.write_text("#!/bin/sh\n[ \"$2\" = view ] && echo '{\"state\":\"OPEN\",\"reviewDecision\":\"CHANGES_REQUESTED\"}' && exit 0\n"
-                      "echo \"$@\" > " + str(log) + "\necho https://example.test/pr/1\n")
+                      "echo \"$@\" > '" + str(log) + "'\necho https://example.test/pr/1\n")
         gh.chmod(0o755)
         (bin_dir / "gh.cmd").write_text('@if "%2"=="view" (echo {"state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}& exit /b 0)\n'
                                         f"@echo %* > \"{log}\"\n@echo https://example.test/pr/1\n")
@@ -341,7 +341,7 @@ class Push(FixtureCase):
         bin_dir, log = self.tmp / "bin", self.tmp / "gh.log"
         bin_dir.mkdir()
         gh = bin_dir / "gh"
-        gh.write_text("#!/bin/sh\necho \"$@\" > " + str(log) + "\necho https://example.test/pr/1\n")
+        gh.write_text("#!/bin/sh\necho \"$@\" > '" + str(log) + "'\necho https://example.test/pr/1\n")
         gh.chmod(0o755)
         (bin_dir / "gh.cmd").write_text(f"@echo %* > \"{log}\"\n@echo https://example.test/pr/1\n")
         ctx = config.load(str(self.repo))
@@ -366,7 +366,7 @@ class Push(FixtureCase):
         bin_dir, log = self.tmp / "bin", self.tmp / "gh.log"
         bin_dir.mkdir()
         gh = bin_dir / "gh"
-        gh.write_text('#!/bin/sh\necho "$@" >> ' + str(log) + '\n[ "$1" = api ] && '
+        gh.write_text('#!/bin/sh\necho "$@" >> \'' + str(log) + '\'\n[ "$1" = api ] && '
                       "echo '{\"html_url\": \"https://example.test/pr/2\"}' && exit 0\necho HTTP 403 >&2\nexit 1\n")
         gh.chmod(0o755)
         reply = '{"html_url": "https://example.test/pr/2"}'
@@ -389,7 +389,7 @@ class Push(FixtureCase):
         bin_dir, log = self.tmp / "bin", self.tmp / "gh.log"
         bin_dir.mkdir()
         gh = bin_dir / "gh"
-        gh.write_text("#!/bin/sh\necho \"$@\" > " + str(log) + "\necho https://example.test/pr/1\n")
+        gh.write_text("#!/bin/sh\necho \"$@\" > '" + str(log) + "'\necho https://example.test/pr/1\n")
         gh.chmod(0o755)
         (bin_dir / "gh.cmd").write_text(f"@echo %* > \"{log}\"\n@echo https://example.test/pr/1\n")
         ctx = config.load(str(self.repo))

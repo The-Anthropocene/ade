@@ -5,7 +5,7 @@
 # writes: temporary directories only
 import os
 from unittest import mock
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from ade import config, records
 from ade.verbs import digest  # noqa: F401  (imported so the graph records coverage)
@@ -19,7 +19,7 @@ class DigestTest(FixtureCase):
         ctx = config.load(str(self.repo))
         records.append(ctx, "card", {"id": "c1", "status": "landed"})
         records.append(ctx, "decision", {"text": "c2 parked: stuck", "paths": [], "kind": "question", "rec": "retry",
-                                         "default": "retry", "deadline": date.today().isoformat(),
+                                         "default": "retry", "deadline": records.today().isoformat(),
                                          "card": "c2"}, prefix="d")
         code, out = self.ade("digest")
         self.assertEqual(code, 0, out)

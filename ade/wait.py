@@ -101,7 +101,7 @@ def _answered(ctx, did, _since):
     d = records.merged(ctx, "decision").get(did)
     if d is None:
         refuse("wait.args", f"no decision {did}", "list them with `ade decide --list`")
-    return "answer" in d or ("deadline" in d and date.today() > date.fromisoformat(d["deadline"]))
+    return "answer" in d or ("deadline" in d and records.today() > date.fromisoformat(d["deadline"]))
 
 
 def _exit(_ctx, pid, _since):

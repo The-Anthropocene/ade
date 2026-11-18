@@ -41,7 +41,7 @@ def reverted(ctx, since):
 
 def run(args, cwd):
     try:
-        day = date.fromisoformat(args.day) if args.day else date.today()
+        day = date.fromisoformat(args.day) if args.day else records.today()
     except ValueError:
         refuse("digest.day", f"cannot read day {args.day!r}", "use --day 2026-11-02")
     ctx = config.load(cwd)

@@ -130,8 +130,8 @@ class InstallTest(FixtureCase):
     def test_init_moves_hooks_out_of_the_committed_settings(self):
         # An older init put hooks (some by kit path) in settings.json; the user's own hook there stays.
         # Guards install._ours, which tells them apart: it knows every form init writes and claims no other command.
-        for cmd in ("ade hook brief", '"C:/Users/x/.local/bin/ade.exe" hook bash', "'/Volumes/ADE/ade/bin/ade' hook brief",
-                    '"/opt/py/bin/python3" -m ade status --line', '"/Volumes/ADE/.tools/bin/ade" hook start'):
+        for cmd in ("ade hook brief", '"C:/Users/x/.local/bin/ade.exe" hook bash', "'/opt/tools/ade/bin/ade' hook brief",
+                    '"/opt/py/bin/python3" -m ade status --line', '"/opt/tools/.tools/bin/ade" hook start'):
             self.assertTrue(install._ours(cmd), cmd)
         for cmd in ("npx expo-hook", '"/usr/bin/adep" run', "python3 scripts/ade_check.py"):
             self.assertFalse(install._ours(cmd), cmd)
@@ -139,7 +139,7 @@ class InstallTest(FixtureCase):
         sp, lp = self.repo / ".claude/settings.json", self.repo / ".claude/settings.local.json"
         settings = json.loads(sp.read_text())
         settings["statusLine"] = {"type": "command", "command": "ade status --line"}
-        settings["hooks"] = {"PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": "'/Volumes/ADE/ade/bin/ade' hook brief"}]},
+        settings["hooks"] = {"PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": "'/opt/tools/ade/bin/ade' hook brief"}]},
                                             {"matcher": "Bash", "hooks": [{"type": "command", "command": "npx expo-hook"}]}]}
         sp.write_text(json.dumps(settings))
         lp.write_text(json.dumps({"permissions": {"allow": ["Bash(npm test)"]}}))  # Claude Code's own local approvals
@@ -154,7 +154,7 @@ class InstallTest(FixtureCase):
         self.assertEqual(json.loads(lp.read_text()), local)
 
     def test_hooks_use_the_running_ade_when_it_is_not_on_path(self):
-        # The shared Mac: ade lives in /Volumes/ADE/.tools/bin and the shell profile is never edited to add it.
+        # A shared machine: ade lives in /opt/tools/.tools/bin and the shell profile is never edited to add it.
         exe = self.tmp / "tools dir" / "bin" / "ade"
         exe.parent.mkdir(parents=True)
         exe.write_text("#!/bin/sh\n")

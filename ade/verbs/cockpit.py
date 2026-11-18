@@ -127,7 +127,8 @@ def show(ctx):
     print(f"ADE cockpit · {ctx.root.name}")
     for line in strips(ctx):
         print(line)
-    for c in [c for c in cards.values() if c["status"] != "closed"]:
+    done = [c for c in cards.values() if c["status"] == "landed" and not c.get("every")]  # one-off landed cards fold into a count so the board stays a screen
+    for c in [c for c in cards.values() if c["status"] != "closed" and c not in done]:
         last = next((r for r in reversed(journal) if r["card"] == c["id"]), None)
         state = (f"resting to {c['due']}" if c.get("every") else "landed") if c["status"] == "landed" else (stage_outcome(last) if last else "new")
         nxt = "" if c["status"] == "landed" else f"  -> {next_command(ctx, c, journal)}"
@@ -135,6 +136,8 @@ def show(ctx):
             q = [d for d in records.merged(ctx, "decision").values() if d.get("card") == c["id"]][-1]
             state, nxt = "held", f"  -> ade decide --answer {q['id']} {(decide.FORMS.get(q.get('rec')) or ['retry'])[0]}"
         print(f"  {c['id']:<5} {state:<24} {c['title']}{nxt}")
+    if done:
+        print(f"  {len(done)} landed")
     if not cards:
         print("  no cards: ade card add TITLE --path GLOB --done TEXT")
     if flights := records.read(ctx, "flight"):
