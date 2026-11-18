@@ -381,7 +381,7 @@ A provider is an adapter behind one call: run this role with this prompt in this
 
 Telemetry and logs are wanted. Telemetry leaving the machine is not.
 
-- **Per call.** Each harness reports its own usage when run headless. The adapter writes one usage row per call, tagged with card, stage and role. No transcript scraping.
+- **Per call.** Each harness reports its own usage when run headless. The adapter writes one usage row per call, tagged with card, stage and role. No transcript scraping, with one exception: `ade telemetry --week` is the one reader of a harness's own session files. It reads only usage metadata (token counts, model, timestamps, entrypoint, the sidechain flag, and the ids it uses to drop duplicates), never message text, and nothing it reads leaves the machine.
 - **Per card and per week.** `ade telemetry` prints usage per card and per provider. Where a harness reports a weekly window, the cockpit and the status line show it against the share of the week the user allows the kit, and the conductor parks instead of waking a model once a provider is over its share.
 - **Per day.** `ade digest` is one short summary: cards landed, cards parked with their open question, and questions whose default applied.
 - **Portable format.** `ade telemetry export` writes OpenTelemetry-shaped files locally, so any OpenTelemetry tool can read them.
