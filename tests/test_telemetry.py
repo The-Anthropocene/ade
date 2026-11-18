@@ -166,7 +166,7 @@ class TelemetryTest(FixtureCase):
         # Also guards the contract: Claude's sandbox lets only an exact-path allowRead override a glob denyRead, so secret_ok
         # matches under the lane cwd are listed by absolute path, and a secret that is not secret_ok never is.
         ctx = config.load(str(self.repo))
-        ctx.cfg["guards"]["secrets"] = [".atlas/keys/*"]
+        ctx.cfg["guards"]["secrets"] = [".keys/*"]
         ctx.cfg["guards"]["secret_ok"] = [".env.example"]
         with tempfile.TemporaryDirectory() as d:
             for n in (".env", ".env.example"):
@@ -180,8 +180,8 @@ class TelemetryTest(FixtureCase):
         self.assertIn("/**/.env.example", fs["allowRead"])
         # Also guards: --settings carries the Read and Grep denies init writes for [guards] secrets, since an
         # untrusted lane checkout ignores the committed .claude/settings.json.
-        self.assertIn("Read(~/.atlas/keys/*)", s["permissions"]["deny"])
-        self.assertIn("Grep(~/.atlas/keys/*)", s["permissions"]["deny"])
+        self.assertIn("Read(~/.keys/*)", s["permissions"]["deny"])
+        self.assertIn("Grep(~/.keys/*)", s["permissions"]["deny"])
         # Also guards the property: in a git checkout, files under a .gitignore'd folder (venv, build, caches) are never listed.
         with tempfile.TemporaryDirectory() as d:
             subprocess.run(["git", "init", "-q", d], check=True)

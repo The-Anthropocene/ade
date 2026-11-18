@@ -208,18 +208,18 @@ class InstallTest(FixtureCase):
         # nothing, and uninstall takes out exactly those rules.
         self.install()
         toml = self.repo / "ade.toml"
-        toml.write_text(re.sub(r"(?m)^secrets = \[.*\]$", "secrets = ['.atlas/keys/*']", toml.read_text(), count=1))
+        toml.write_text(re.sub(r"(?m)^secrets = \[.*\]$", "secrets = ['.keys/*']", toml.read_text(), count=1))
         sp = self.repo / ".claude/settings.json"
         self.assertEqual(self.ade("init")[0], 0)
         deny = json.loads(sp.read_text())["permissions"]["deny"]
-        for rule in ("Read(~/.atlas/keys/*)", "Grep(~/.atlas/keys/*)", "Read(**/.atlas/keys/*)",
-                     "Grep(**/.atlas/keys/*)"):
+        for rule in ("Read(~/.keys/*)", "Grep(~/.keys/*)", "Read(**/.keys/*)",
+                     "Grep(**/.keys/*)"):
             self.assertEqual(deny.count(rule), 1)
         before = sp.read_text()
         self.assertEqual(self.ade("init")[0], 0)
         self.assertEqual(sp.read_text(), before)
         self.assertEqual(self.ade("uninstall")[0], 0)
-        self.assertNotIn(".atlas/keys", sp.read_text() if sp.exists() else "")
+        self.assertNotIn(".keys", sp.read_text() if sp.exists() else "")
 
     def test_uninstall_removes_what_init_generated_and_keeps_the_rest(self):
         # The user's own pieces sit beside ade's in every shared file; uninstall must leave exactly those.
