@@ -16,6 +16,8 @@ ade card add "say hello" --path hello.py --done "it prints hello"
 ade loop c1                                       # lane, build, review, test, land
 ```
 
+You need git and one of Claude Code, Codex, OpenCode or Pi, installed and signed in. To try it without spending anything, run `ade rehearse`.
+
 No account, no dependencies, nothing phones home. Python 3.11+ and the standard library.
 
 ADE runs each vendor's own unmodified CLI under your login. It never reads or stores that login, and it can run on an API key instead.
@@ -26,7 +28,7 @@ ADE was built in private first, by Connor Roberts at Practice Atlas Ltd, using A
 
 ## More
 
-- Docs: [docs/](docs/), and the install and upgrade guide at https://atlas-ade.dev/docs/
+- Docs: https://atlas-ade.dev/docs/ (install, quickstart, the verbs)
 - How the loop works: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Licence: MIT, see [LICENSE](LICENSE). The Atlas ADE name and logo are not part of the licence.
