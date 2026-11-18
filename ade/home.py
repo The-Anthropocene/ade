@@ -71,7 +71,10 @@ def show(cwd):
         from ade.verbs import status
         ctx = config.load(cwd)
         here = status.line(ctx) + _next(ctx)
-    except Refusal:
+    except Refusal as r:
+        if r.code == "git.failed":
+            print(r.render(), file=sys.stderr)
+            return 2
         here = "not set up here: `ade init` starts a project in an empty folder or installs into a repo"
         greeting = firstrun.welcome()
     print(_paint("36", LOGO) + "   " + _paint("2", TAGLINE))

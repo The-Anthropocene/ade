@@ -30,7 +30,7 @@ HOOKS = [("PreToolUse", "Edit|Write|MultiEdit|NotebookEdit|apply_patch", "hook b
 
 def ade_cmd():
     """`ade` when PATH's ade runs this same kit, so the hooks read short. Otherwise the absolute path of the ade that
-    is running: an install kept off PATH (a shared Mac whose shell profile stays untouched) still gets working hooks,
+    is running: an install kept off PATH (a shared machine whose shell profile stays untouched) still gets working hooks,
     and a different ade first on PATH (a dev checkout ahead of the pinned venv) never runs them in this kit's place.
     The hooks live in the gitignored settings.local.json, so each machine's `ade init` writes its own form."""
     found = shutil.which("ade")
@@ -85,12 +85,11 @@ def _ours(cmd):
     # Any form ade_cmd() ever wrote, or an earlier install's kit path (`'/path/to/kit/bin/ade' hook brief`).
     cmd = cmd.strip()
     q = cmd[:1] if cmd[:1] in "'\"" else ""
-    first, rest = (cmd[1:].split(q, 1) if q else (cmd.split(" ", 1) + [""])[:2])
-    return Path(first.replace("\\", "/")).stem == "ade" or rest.split()[:2] == ["-m", "ade"]
-
-
-# The modes earlier inits wrote when ade.toml named none; a project still carrying one did not choose it.
-OLD_MODES = ("default", "acceptEdits")
+    first, _, rest = cmd[1:].partition(q) if q else cmd.partition(" ")  # an unbalanced quote leaves rest empty
+    words = rest.split()
+    # ADE's own verbs only: a person's ./scripts/ade.sh lint is not ours.
+    return bool(words) and words[0] in ("hook", "status") and Path(first.replace("\\", "/")).name in ("ade", "ade.exe", "ade.cmd") \
+        or words[:2] == ["-m", "ade"]
 
 
 def _denied(ctx):
@@ -123,13 +122,10 @@ def settings(ctx, existing):
     perms = dict(out.get("permissions", {}))
     for kind in ("allow", "deny"):
         perms[kind] = list(_denied(ctx) if kind == "deny" else ctx.cfg["permissions"][kind])
-    # Never widen the mode the user chose; only fill it in when absent, and only when ade.toml names one. With none,
-    # a mode an earlier init wrote by default goes, so Claude Code's own default and the user's settings decide.
+    # Never widen the mode the user chose; only fill it in when absent, and only when ade.toml names one.
     mode = ctx.cfg["permissions"]["mode"]
     if mode:
         perms.setdefault("defaultMode", mode)
-    elif perms.get("defaultMode") in OLD_MODES:
-        del perms["defaultMode"]
     out["permissions"] = perms
     # The platform's own cap on Bash output (ARCHITECTURE.md 12.5); a value the user set is never replaced.
     if ctx.cfg["q"]["bash_chars"] and "BASH_MAX_OUTPUT_LENGTH" not in out.get("env", {}):
@@ -144,7 +140,9 @@ def settings(ctx, existing):
 
 
 def _strip(hooks):
-    kept = {k: [e for e in v if not any(_ours(h.get("command", "")) for h in e.get("hooks", []))] for k, v in hooks.items()}
+    # Only ADE's hooks leave a matcher group; the person's beside them stay, and a group left empty goes.
+    kept = {k: [{**e, "hooks": mine} for e in v if (mine := [h for h in e.get("hooks", []) if not _ours(h.get("command", ""))])]
+            for k, v in hooks.items()}
     return {k: v for k, v in kept.items() if v}
 
 
@@ -163,7 +161,8 @@ def local_settings(existing):
     """The gitignored .claude/settings.local.json: ade's hooks and status line in this machine's form of ade_cmd(),
     merged into whatever the user keeps there (Claude Code writes its own local approvals to the same file)."""
     out = _add_hooks(existing)
-    out["statusLine"] = {"type": "command", "command": f"{ade_cmd()} status --line"}
+    if "statusLine" not in out or _ours(out["statusLine"].get("command", "")):  # the person's own stays
+        out["statusLine"] = {"type": "command", "command": f"{ade_cmd()} status --line"}
     return out
 
 
@@ -291,8 +290,11 @@ def _using():
             "- On Codex, OpenCode and Pi a `[roles.<role>]` system_prompt file leads the whole prompt (Claude Code appends it), so give the reviewer its own file rather than the builder's brief.",
             "- Under `[conduct]` answerer = \"agent\" an agent may also make a standing proposal stand; a seat that leaves stand to the person stays off `ade decide --answer dN stand`.",
             "- Settings are looked up and explained by `ade config WORD`; do not copy them into prose.",
-            "- An agent's `land` answer lands a card only when `[conduct] answerer = \"agent\"` (a person sets it).",
+            "- A go-ahead an agent relays (chat or a page) is not the person's land; an agent's `ade decide --answer dN land` counts only under `[conduct] answerer = \"agent\"`, which stays \"person\" (the default) unless the person sets it, and then an agent's land clears the `[land]` ask paths, except that a card that changes `ade/install.py` waits for a person whatever answerer says (`land.asked`, `own_generator`); otherwise the person answers in their own terminal.",
             "- After pulling a new kit, a person runs `ade init`.",
+            "- The kit version is what `ade --version` prints; take it from there, not from memory or a file.",
+            "- `ade init` warns when a `[guards] secrets` glob hides tracked code from agents and reviewers; narrow the glob or allow it with `[guards] secret_ok` (`tracked:GLOB`).",
+            "- `ade card close ID --why TEXT` is final: the card is retired and conduct never flies it again, so close only a card that will not be done.",
             "- A card whose done line needs a browser, an idle machine, a person or paths outside the repo is added with `--hold`.",
             f"- A card's `--done` is {card_verb.DONE_HELP}. `--proof CMD` makes land run the proof itself.", "",
             "Good and bad calls:", "",
@@ -374,8 +376,8 @@ def removal(ctx):
         kept = [r for r in perms.get(kind, []) if r not in own]
         perms.pop(kind, None)
         perms.update({kind: kept} if kept else {})
-    if perms.get("defaultMode") in (ctx.cfg["permissions"]["mode"], *OLD_MODES):
-        del perms["defaultMode"]  # the mode ade filled in; a different one is the user's choice and stays
+    if ctx.cfg["permissions"]["mode"] and perms.get("defaultMode") == ctx.cfg["permissions"]["mode"]:
+        del perms["defaultMode"]  # the mode ade.toml names, which init filled in; any other is the user's and stays
     s.pop("permissions", None)
     s.update({"permissions": perms} if perms else {})
     local = json.loads(cur(LOCAL) or "{}")
@@ -441,7 +443,10 @@ def plan(ctx):
              (".gitattributes", _gitattributes(ctx, cur(".gitattributes")))]
     existing = json.loads(cur(".claude/settings.json") or "{}")
     files.append((".claude/settings.json", json.dumps(settings(ctx, existing), indent=2) + "\n"))
-    files.append((LOCAL, json.dumps(local_settings(json.loads(cur(LOCAL) or "{}")), indent=2) + "\n"))
+    local = json.loads(cur(LOCAL) or "{}")
+    if "statusLine" in local and not _ours(local["statusLine"].get("command", "")) and not getattr(plan, "said", 0):
+        plan.said = print("kept your own status line in .claude/settings.local.json") or 1
+    files.append((LOCAL, json.dumps(local_settings(local), indent=2) + "\n"))
     files.append((CODEX, json.dumps(codex_hooks(json.loads(cur(CODEX) or "{}")), indent=2) + "\n"))
     files += [(f".claude/agents/ade-{n}.md", _agent(n, r)) for n, r in ctx.cfg["roles"].items()]
     files.append(("AGENTS.md", _agents_md(ctx, cur("AGENTS.md"))))

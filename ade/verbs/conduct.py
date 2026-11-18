@@ -8,7 +8,7 @@ import os
 import re
 import shlex
 import time
-from datetime import date, timedelta
+from datetime import timedelta
 
 from ade import cli, config, graph, orca, parts, providers, records, route, stages, telemetry, wait
 from ade.gitx import git
@@ -71,7 +71,7 @@ def _park(ctx, c, stop, why, deadline=None):
     # The deadline is today unless given: decide.state defaults a question the day after its deadline, so the next
     # day's run retries it (an over-share park passes the reset's eve, so it flies again on the reset day).
     decide.park(ctx, f"{c['id']} parked: {why}", {"paths": c["paths"], "kind": "question", "rec": "retry",
-                 "default": "retry", "deadline": deadline or date.today().isoformat(), "card": c["id"]})
+                 "default": "retry", "deadline": deadline or records.today().isoformat(), "card": c["id"]})
     print(f"parked {c['id']}: {why}" + (f"\n  next: {stop['next']}" if stop and stop.get("next") else ""))
     return "parked"
 
@@ -338,14 +338,14 @@ def _fly(ctx, args, cwd):
     _sweep(ctx)
     if not args.follow:
         return _round(ctx, args, set(), {})
-    tried, done, day, n = set(), {}, date.today(), 0
+    tried, done, day, n = set(), {}, records.today(), 0
     while True:
         code = _round(ctx, args, tried, done)
         n += 1
         over = [m for m in telemetry.meters(ctx, {providers.engine(ctx, r) for r in ctx.cfg["roles"]}) if m[3]]
         why = (f"{over[0][0]} is over its week share" if over else
                capped(ctx) or
-               ("a new day began" if ctx.cfg["conduct"]["follow_stop"] == "day" and date.today() != day else None) or
+               ("a new day began" if ctx.cfg["conduct"]["follow_stop"] == "day" and records.today() != day else None) or
                (f"{args.rounds} rounds done" if args.rounds and n >= args.rounds else None))
         if why:
             print(f"following stopped: {why}")
@@ -355,7 +355,7 @@ def _fly(ctx, args, cwd):
 
 def capped(ctx):
     """Why the engine-call cap stops the run, or None. Calls are ADE's own usage rows: today's, and the last 7 days'."""
-    cap, today = ctx.cfg["conduct"]["cap"], date.today()
+    cap, today = ctx.cfg["conduct"]["cap"], records.today()
     days = [r["at"][:10] for r in records.read(ctx, "usage")]
     for name, span in (("day", 1), ("week", 7)):
         n = sum(d > (today - timedelta(days=span)).isoformat() for d in days)

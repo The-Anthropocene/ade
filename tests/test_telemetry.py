@@ -265,7 +265,7 @@ class TelemetryTest(FixtureCase):
         self.assertEqual(telemetry.meter(ctx, "codex"), 0.3)
         telemetry.record(ctx, "c1", "build", "builder", "codex", "gpt-6-sol", 1.0, {"week_used": 0.3, "week_resets": "soon"})
         self.assertEqual(telemetry.meter(ctx, "codex"), None)
-        # Guards the owner's 27/10/2026 rule: the one meter fact that leaves the machine, the share flag, is a yes/no
+        # Guards the rule: the one meter fact that leaves the machine, the share flag, is a yes/no
         # with its reset, and moves only on change (the last row above said over).
         seen = len(records.read(ctx, "share"))
         for used in (0.05, 0.125, 0.125, 0.5, 0.05):

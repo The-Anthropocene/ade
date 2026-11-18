@@ -13,7 +13,7 @@ from ade import host
 from ade.gitx import git
 
 # The facts we would be sorry to lose (ARCHITECTURE.md 3.2); the rest is a cache a rerun rebuilds.
-# Usage rows are not in it: no usage numbers leave the machine (owner, 27/10/2026), only the share flag may.
+# Usage rows are not in it: no usage numbers leave the machine, only the share flag may.
 DURABLE = {"card", "decision", "observation", "outcome", "refusal", "residual", "share", "test_red", "review_verdict"}
 BRANCH, FILE = "ade-records", "records.jsonl"
 # Record commits carry the kit's own identity, so a machine without git user config still keeps its records.
@@ -254,12 +254,14 @@ def _rows(f):
     return rows
 
 
-def append(ctx, rtype, fields, prefix=None):
+def append(ctx, rtype, fields, prefix=None, guard=None):
     # The id is assigned under the same lock as the write so two verbs never mint the same one.
     p = _path(ctx)
     p.parent.mkdir(parents=True, exist_ok=True)
     with host.lock(p.with_suffix(".lock")):
         _restore(ctx, p)
+        if guard:
+            guard()  # a refusal here leaves the records untouched
         with host.opentext(p, "a+") as f:
             return _append(ctx, f, rtype, fields, prefix)
 
@@ -321,7 +323,11 @@ def read(ctx, rtype=None, archive=False):
     return [r for r in rows if rtype is None or r["type"] == rtype]
 
 
-def merged(ctx, rtype, today=None):
+def today():
+    return datetime.now(timezone.utc).date()
+
+
+def merged(ctx, rtype, on=None):
     # Later rows for the same id update earlier ones, so a status change is one appended row.
     out = {}
     for r in read(ctx, rtype):
@@ -335,5 +341,5 @@ def merged(ctx, rtype, today=None):
         # A recurring card rests as landed until its due date (its last landing plus `every` days, or the date a
         # snooze row set), then it is open again; nothing outside ade runs to wake it, the next read does.
         if rtype == "card" and c.get("due"):
-            c["status"] = "open" if (today or date.today()) >= date.fromisoformat(c["due"]) else ("closed" if c["status"] == "closed" else "landed")
+            c["status"] = "open" if (on or today()) >= date.fromisoformat(c["due"]) else ("closed" if c["status"] == "closed" else "landed")
     return out

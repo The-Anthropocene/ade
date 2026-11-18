@@ -89,7 +89,10 @@ def page(ctx, qid, n):
 
 
 def grep(ctx, qid, pattern):
-    rx = re.compile(pattern)
+    try:
+        rx = re.compile(pattern)
+    except re.error as e:
+        refuse("q.failed", f"not a valid pattern {pattern!r}: {e}", "q grep takes a Python regular expression")
     with _use(ctx) as con:
         rows = con.execute("SELECT id, body FROM outputs" + ("" if qid == "all" else " WHERE id = ?"),
                            () if qid == "all" else (_num(qid),)).fetchall()

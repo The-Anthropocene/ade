@@ -43,6 +43,7 @@ def test_count(root):
     r = git(root, "ls-files", "--", "tests", check=False)
     files = ([root / n for n in r.stdout.splitlines() if n.endswith(".py")] if r.returncode == 0
              else (root / "tests").rglob("*.py"))
+    files = [p for p in files if not any(d.startswith("fixture_") for d in p.relative_to(root).parts[:-1])]
     return sum(isinstance(n, ast.FunctionDef) and n.name.startswith("test")
                for p in files for n in ast.walk(ast.parse(host.read(p))))
 

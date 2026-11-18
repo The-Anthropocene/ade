@@ -17,7 +17,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import date
 from pathlib import Path
 
 from ade import budget, graph, host, install, parts, push, records
@@ -152,7 +151,7 @@ def asked(ctx, c):
            else f"{c['id']} touches {hit[0]}, which lands only on an answer to its question")
     if q is None:
         q = records.append(ctx, "decision", {"text": why, "paths": list(hit), "kind": "question", "rec": "land",
-                                             "default": "", "deadline": date.today().isoformat(), "card": c["id"],
+                                             "default": "", "deadline": records.today().isoformat(), "card": c["id"],
                                              **({"held": True} if held else {}),
                                              **({"answerer": "agent"} if ctx.cfg.get("conduct", {}).get("answerer") == "agent" else {})}, prefix="d")
     return Result("wait", why if held else f"{why} ([land] ask)", REWORK.format(id=q["id"]))
@@ -319,7 +318,7 @@ def lane_merge(ctx, c, lp, check=None):
     if not r.returncode:
         fix = f"fix `{check}` in the lane, commit, then " if check else ""
         return f"trunk is merged into the lane with no clash{kept}; {fix}`ade loop {c['id']}`"
-    files = git(lp, "diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
+    files = git(lp, "diff", "--name-only", "--diff-filter=U", check=False).stdout.splitlines()
     out = ctx.cfg["graph"]["out"]
     if out in files:  # the generated graph is never a file to resolve: render it on the merged tree and stage it
         from ade.stages import build  # build imports land, so only here
@@ -446,7 +445,7 @@ def open_pr(ctx, c, sha=None):
               f"{head}, then `git push {name} HEAD:refs/heads/{head}`")
         return "; not pushed (see above)"
     gh = shutil.which("gh")  # the resolved path, so Windows runs gh.exe or a gh.cmd the same way which found it
-    r = subprocess.run([gh, *cmd[1:]], cwd=ctx.root, capture_output=True, text=True,
+    r = subprocess.run([gh, *cmd[1:]], cwd=ctx.root, capture_output=True, text=True, encoding="utf-8",
                        input=body) if gh else None
     if r and not r.returncode and r.stdout.strip():
         return f"; PR opened: {r.stdout.strip().splitlines()[-1]}"
@@ -454,7 +453,7 @@ def open_pr(ctx, c, sha=None):
     if gh:  # some hosts refuse the GraphQL that `gh pr create` uses: try REST once
         api = [gh, "api", "repos/{owner}/{repo}/pulls", "--method", "POST", "-f", f"base={trunk}", "-f",
                f"head={head}", "-f", f"title={title}", "-F", "body=@-"]
-        a = subprocess.run(api, cwd=ctx.root, capture_output=True, text=True, input=body)
+        a = subprocess.run(api, cwd=ctx.root, capture_output=True, text=True, encoding="utf-8", input=body)
         try:
             url = json.loads(a.stdout)["html_url"] if not a.returncode else ""
         except (ValueError, KeyError, TypeError):
@@ -585,6 +584,23 @@ def stacked_above(ctx, name, head, tip):
     return found
 
 
+def hand_extra(ctx, old, tip, trunk):
+    """What keeps tip from being a pure hand merge of trunk on the landed commit old ('' when it is one): extra commits or files."""
+    ps = git(ctx.root, "rev-list", "--parents", "-n1", tip).split()[1:]
+    if len(ps) != 2:
+        return f"the tip has {len(ps)} parent(s), not 2"
+    if ps[0] != old:
+        return "extra commits: " + " ".join(git(ctx.root, "rev-list", f"{old}..{ps[0]}", check=False).stdout.split() or [ps[0]])
+    if git(ctx.root, "merge-base", "--is-ancestor", ps[1], trunk, check=False).returncode:
+        return f"its second parent {ps[1][:10]} is not in the fetched trunk"
+    m = git(ctx.root, "merge-tree", "--write-tree", "--name-only", old, ps[1], check=False).stdout.split("\n\n")[0].splitlines()
+    if not m:
+        return "its merge cannot be recomputed"
+    differ = git(ctx.root, "diff", "--name-only", m[0], tip).splitlines()
+    extra = [f for f in differ if f not in m[1:]]
+    return "extra files: " + ", ".join(extra) if extra else ""
+
+
 def catch_up_branch(ctx, c):
     """ade land CARD --catch-up: merge fetched trunk into the remote ade/<card> tip in a scratch worktree (a merge commit,
     never a rebase), run the whole suite there, then push the result as a fast-forward and record it. Moves nothing on a stop."""
@@ -600,12 +616,26 @@ def catch_up_branch(ctx, c):
         return Result("needs-judgement", f"{name} has no {head} to catch up", f"`ade land {c['id']}` ships it first")
     tip = git(ctx.root, "rev-parse", "FETCH_HEAD")
     if git(ctx.root, "merge-base", "--is-ancestor", trunk, tip, check=False).returncode == 0:
+        old = c.get("commit")
+        if old and old != tip and git(ctx.root, "merge-base", "--is-ancestor", old, tip, check=False).returncode == 0:
+            # a person merged trunk in by hand: record it as the catch-up below would, but only a pure merge
+            extra = hand_extra(ctx, old, tip, trunk)
+            if extra:
+                return Result("needs-judgement", f"{head} is not a pure merge of {name}/{main(ctx)} on {old[:10]}: {extra}; nothing was recorded",
+                              f"review the extra work, or redo the merge on {old[:10]}, push it, then rerun `ade land {c['id']} --catch-up`")
+            records.append(ctx, "card", {"id": c["id"], "status": "landed", "commit": tip, "caught_up_from": old})
+            try:
+                push.push(ctx, trunk=False)
+            except Refusal as r:
+                print(r.render())
+                records.fired(ctx, r, c["id"])
+            return Result("done", f"{head} already holds {name}/{main(ctx)}; recorded the hand merge: {old[:10]} -> {tip[:10]}")
         return Result("done", f"{head} already holds {name}/{main(ctx)}; nothing to catch up")
     above = stacked_above(ctx, name, head, tip)
     if above:  # a catch-up merge on a lower branch takes it out of the stack, so its PR stops closing with the top one
         return Result("needs-judgement", f"{name}/{above} already contains {head}'s head; catching {head} up would unstack it",
                       f"`ade land {above.removeprefix('ade/')} --catch-up` (catch up the top of the stack)")
-    cure = f"merge {name}/{main(ctx)} into {head} by hand and push it"
+    cure = f"merge {name}/{main(ctx)} into {head} by hand, push it, then rerun `ade land {c['id']} --catch-up` to record it"
     with merged_tree(ctx, tip) as wt:
         if git(wt, "merge", "--no-ff", "-q", "-m", f"catch up with {name}/{main(ctx)}", trunk, check=False).returncode:
             return Result("needs-judgement", f"{head} conflicts with {name}/{main(ctx)}; nothing was pushed", cure)
@@ -642,6 +672,10 @@ def run(ctx, c, catch=False):
     if not t or not (cached(ctx, "review", c, t, "approve") and cached(ctx, "test", c, t, "pass")):
         refuse("land.unproven", f"{c['id']} has no approved review and passing tests for its current lane tree",
                f"run `ade loop {c['id']}`, which reviews and tests before it lands")
+    on = git(lp, "rev-parse", "--abbrev-ref", "HEAD", check=False).stdout.strip()
+    if on != branch(c["id"]):  # the proof is of this HEAD's tree, but the merge takes the branch: they must be one
+        refuse("land.unproven", f"the lane {lp} is on {on if on != 'HEAD' else 'a detached HEAD'}, not {branch(c['id'])}, so its proven tree is not what would merge",
+               f"in {lp} run `git switch {branch(c['id'])}` (bring any commits made elsewhere onto it first), then `ade loop {c['id']}`")
     loose = git(lp, "diff", "--name-only", "HEAD").splitlines() + git(lp, "ls-files", "--others", "--exclude-standard").splitlines()
     if loose:  # the tests ran on these, but only commits merge, and the lane is removed with --force after landing
         return Result("needs-judgement", f"the lane has uncommitted edits that landing would discard: {', '.join(loose)}",
@@ -701,7 +735,12 @@ def run(ctx, c, catch=False):
             if r.returncode and regenerated(ctx, c):  # only the generated graph clashed: render it on the merged tree
                 r = subprocess.CompletedProcess([], 0)
             if r.returncode:
+                clash = git(ctx.root, "diff", "--name-only", "--diff-filter=U", check=False).stdout.splitlines()
                 git(ctx.root, "merge", "--abort", check=False)
+                if not clash:  # git refused before merging anything (say, a staged file): its reason, not a conflict
+                    why = next((l.strip() for l in (r.stderr or r.stdout or "").splitlines() if l.strip()), "git gave no reason")
+                    return Result("wait", f"git would not merge {branch(c['id'])}: {why[:200]}",
+                                  f"commit or stash in {ctx.root}, then `ade loop {c['id']}`")
                 return Result("needs-judgement", "merge conflict with main", lane_merge(ctx, c, lp))
             sha = at = git(ctx.root, "rev-parse", "HEAD")
         if not done or not any(r["card"] == c["id"] and r["tree"] == t for r in records.read(ctx, "verdict")):

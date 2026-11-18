@@ -11,8 +11,11 @@ from ade.refuse import refuse
 
 def git(cwd, *args, check=True, input=None, env=None, timeout=None):
     # Bytes in and out: text mode on Windows would turn the input's LF into CRLF, which mktree reads as part of a name.
-    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, input=None if input is None else input.encode(),
-                       env={**os.environ, **env} if env else None, timeout=timeout)
+    try:
+        r = subprocess.run(["git", "-c", "core.quotePath=false", *args], cwd=cwd, capture_output=True, input=None if input is None else input.encode(),
+                           env={**os.environ, **env} if env else None, timeout=timeout)
+    except FileNotFoundError:
+        refuse("git.failed", "git is not on PATH", "install git or put it on PATH, then rerun the same ade command")
     r.stdout, r.stderr = (b.decode("utf-8", "replace") for b in (r.stdout, r.stderr))
     if check and r.returncode != 0:
         last = (r.stderr.strip() or r.stdout.strip()).splitlines()[-1:] or ["no output"]

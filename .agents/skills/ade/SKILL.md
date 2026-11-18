@@ -97,8 +97,11 @@ Where things belong:
 - On Codex, OpenCode and Pi a `[roles.<role>]` system_prompt file leads the whole prompt (Claude Code appends it), so give the reviewer its own file rather than the builder's brief.
 - Under `[conduct]` answerer = "agent" an agent may also make a standing proposal stand; a seat that leaves stand to the person stays off `ade decide --answer dN stand`.
 - Settings are looked up and explained by `ade config WORD`; do not copy them into prose.
-- An agent's `land` answer lands a card only when `[conduct] answerer = "agent"` (a person sets it).
+- A go-ahead an agent relays (chat or a page) is not the person's land; an agent's `ade decide --answer dN land` counts only under `[conduct] answerer = "agent"`, which stays "person" (the default) unless the person sets it, and then an agent's land clears the `[land]` ask paths, except that a card that changes `ade/install.py` waits for a person whatever answerer says (`land.asked`, `own_generator`); otherwise the person answers in their own terminal.
 - After pulling a new kit, a person runs `ade init`.
+- The kit version is what `ade --version` prints; take it from there, not from memory or a file.
+- `ade init` warns when a `[guards] secrets` glob hides tracked code from agents and reviewers; narrow the glob or allow it with `[guards] secret_ok` (`tracked:GLOB`).
+- `ade card close ID --why TEXT` is final: the card is retired and conduct never flies it again, so close only a card that will not be done.
 - A card whose done line needs a browser, an idle machine, a person or paths outside the repo is added with `--hold`.
 - A card's `--done` is when it is finished, and the proof: usually a command's output, a page, a figure or a runtime log (a rehearsal line counts); keep a test only for a lasting hazard. `--proof CMD` makes land run the proof itself.
 

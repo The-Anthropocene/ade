@@ -2,7 +2,7 @@
 # what: one-line state for the Claude Code status line: repo, open cards, last stage outcome
 # cmd: ade status [--line]
 # reads: git worktree list and status of each lane, .ade/records.jsonl, .ade/grep-notes.jsonl, the status-line JSON Claude Code sends on stdin (rate_limits), .ade/lanes/CARD.lock (a run that died: "cut off: cN ...")
-# writes: $ADE_WORK/meters.jsonl (Claude's five-hour and weekly use, when the status line is handed them)
+# writes: the per-user ade/meters.jsonl in the machine config folder, via telemetry (Claude's five-hour and weekly use, when the status line is handed them)
 import json
 import sys
 import time

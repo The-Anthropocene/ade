@@ -52,8 +52,8 @@ CREDITS = {
         ("MinGit 2.56.0 (Git for Windows), with the libraries it bundles: curl, OpenSSL, OpenSSH, PCRE2, zlib, zstd, "
          "libiconv, gettext, nghttp2, libssh2, Git Credential Manager and others", "Git: GPL-2.0; the rest each its own; "
          "texts below", "https://gitforwindows.org\n"
-         "  Source: an archive of Git for Windows tag v2.56.0.windows.1 is published beside every Atlas ADE release, on\n"
-         "  your account page. For three years from this release we also send it to anyone who asks at\n"
+         "  Source: an archive of Git for Windows tag v2.56.0.windows.1 is published beside every Atlas ADE release on\n"
+         "  GitHub (github.com/The-Anthropocene/ade/releases). For three years from this release we also send it to anyone who asks at\n"
          "  support@atlas-ade.dev. Upstream: https://github.com/git-for-windows/git/tree/v2.56.0.windows.1\n"
          "  and https://github.com/msys2/MINGW-packages"),
     ],
@@ -92,8 +92,8 @@ set it (ade.toml is protected, so an agent cannot), then run ade init again.
 If a setting in ade.toml needs changing, an agent should name the key and value to the person.
 
 You also need one engine installed and signed in with your own account: Claude Code, Codex, OpenCode or Pi.
-ADE drives it and never installs it. The TypeScript starter needs Node 22.6 or newer. Nothing leaves your machine through ade; Claude Code and Codex
-keep their own telemetry under their own settings.
+ADE drives it and never installs it. The TypeScript starter needs Node 22.6 or newer. Nothing leaves your machine through ade; the engine you use
+keeps its own telemetry under its own settings.
 
 LICENSE is Atlas ADE's own licence. THIRD_PARTY_NOTICES.txt names the open-source software in this folder
 and holds its licenses.

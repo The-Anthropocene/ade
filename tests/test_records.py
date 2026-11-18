@@ -148,7 +148,7 @@ class RecordsBranch(FixtureCase):
         seeded = self.commits()
         self.assertEqual(self.ade("init")[0], 0)
         self.assertEqual(self.commits(), seeded)  # a rerun adds nothing
-        # Also guards init with no records on disk and no branch (the Mac after pulling card 13): it starts the branch.
+        # Also guards init with no records on disk and no branch (a second machine after pulling card 13): it starts the branch.
         local.unlink()
         self.git("branch", "-D", "ade-records")
         code, out = self.ade("init")
@@ -163,7 +163,7 @@ class RecordsBranch(FixtureCase):
         self.assertEqual(self.commits(), first)  # a rerun adds nothing
 
     def test_a_second_clone_continues_the_pushed_branch(self):
-        # Connor's second machine: the branch was pushed from the first, then the repo was cloned fresh.
+        # A second machine: the branch was pushed from the first, then the repo was cloned fresh.
         self.install()
         self.ade("card", "add", "from machine A", "--path", "app/calc.py", "--done", "noted")
         bare = self.tmp / "origin.git"

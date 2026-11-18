@@ -6,7 +6,6 @@
 import os
 import subprocess
 import sys
-from datetime import date
 
 from ade import budget, graph, host, install, providers, records
 from ade.config import matches
@@ -137,10 +136,12 @@ def run(ctx, c):
     tracked = git(lp, "ls-files").splitlines()
     prompt += project_rules(ctx, "builder", c["paths"] + [f for f in tracked if matches(f, c["paths"])], c)
     answer = providers.call(ctx, "builder", prompt, lp, c)
+    if providers.UNHOOKED.get(c["id"]) == "opencode":  # no guard ran in that lane, so nothing it did may advance (the others only warn)
+        return Result("needs-judgement", providers.unhooked(c["id"]).lstrip("; "), f"fix that, then `ade loop {c['id']}`")
     evidence = None if rw else met_evidence(answer)  # a built lane is never closed as met at base
     if evidence is not None and not git(lp, "status", "--porcelain"):
         records.append(ctx, "card", {"id": c["id"], "status": "closed", "closed_why": f"met at base: {evidence}",
-                                     "closed_by": decide.who(), "closed_at": date.today().isoformat()})
+                                     "closed_by": decide.who(), "closed_at": records.today().isoformat()})
         return Result("done", "closed: done line already met")
     # A builder cut off part-way (turn limit, lost session) leaves a half-built tree; it must not reach review.
     met = met_evidence(answer)  # MET after editing is a DONE claim: the lane has changes, so it advances

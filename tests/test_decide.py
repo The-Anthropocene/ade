@@ -7,7 +7,7 @@ import json
 import os
 import subprocess
 from unittest import mock
-from datetime import date, timedelta
+from datetime import timedelta
 
 from ade import config, q, records
 from ade.stages import lane_path
@@ -90,7 +90,7 @@ class DecideTest(FixtureCase):
             for n in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "OPENCODE"):
                 os.environ.pop(n, None)
             self.assertNotEqual(decide.answerer()["by"], "agent")
-        later = date.today() + timedelta(days=3)
+        later = records.today() + timedelta(days=3)
         self.assertEqual(decide.state(qs["d2"], later), "defaulted")
         self.assertEqual([d["id"] for d in decide.queue(ctx, later)], [])
         self.assertIn("1 to decide", self.ade("status", "--line")[1])
@@ -128,7 +128,7 @@ class DecideTest(FixtureCase):
             records.append(ctx, "card", {"id": cid, "status": "open"})
             q = records.append(ctx, "decision", {"text": "park?", "paths": [], "kind": "question", "card": cid,
                                                  "rec": "a", "default": "a",
-                                                 "deadline": (date.today() + timedelta(days=5)).isoformat()}, prefix="d")
+                                                 "deadline": (records.today() + timedelta(days=5)).isoformat()}, prefix="d")
             r = records.append(ctx, "decision", {"text": "rule", "paths": ["x/*"], "kind": "ruling", "card": cid},
                                prefix="d")
             self.assertIn(q["id"], [d["id"] for d in decide.queue(ctx)])
@@ -206,7 +206,7 @@ class DecideTest(FixtureCase):
         readme = lp / "README.md"
         readme.write_text(readme.read_text() + "\nedited in the lane\n")
         row = records.append(ctx, "decision", {"text": "c1 parked", "paths": [], "kind": "question", "rec": "retry",
-                                               "default": "retry", "deadline": date.today().isoformat(), "card": "c1"}, prefix="d")
+                                               "default": "retry", "deadline": records.today().isoformat(), "card": "c1"}, prefix="d")
         return ctx, lp, row["id"]
 
     def test_drop_saves_the_lane_as_an_applicable_patch_and_removes_it_while_retry_keeps_it(self):

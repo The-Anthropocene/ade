@@ -39,8 +39,11 @@ def merge(base, over):
 
 
 def _git(cwd, *args):
-    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    try:
+        r = subprocess.run(["git", *args], cwd=cwd, capture_output=True)
+    except FileNotFoundError:
+        refuse("git.failed", "git is not on PATH", "install git or put it on PATH, then rerun the same ade command")
+    return r.stdout.decode("utf-8", "replace").strip() if r.returncode == 0 else None
 
 
 def toplevel(cwd):
@@ -66,7 +69,10 @@ def load_at(root, own=True):  # own=False: the template alone, for a broken ade.
     cfg = tomllib.loads(host.read(TEMPLATE))
     f = Path(root) / "ade.toml"
     if own and f.is_file():
-        cfg = merge(cfg, tomllib.loads(host.read(f)))
+        try:
+            cfg = merge(cfg, tomllib.loads(host.read(f)))
+        except tomllib.TOMLDecodeError as e:
+            refuse("config.value", f"ade.toml is not valid TOML: {e}", "fix that line in ade.toml, then rerun")
     for kind in ("allow", "deny"):  # a rule set to false in ade.toml drops the template's rule, for every reader
         rules = cfg["permissions"][kind]
         cfg["permissions"][kind] = {k: v for k, v in rules.items() if v is not False}

@@ -180,7 +180,7 @@ def _at(row):
     return datetime.fromisoformat(row["at"])
 
 
-# A reading older than this is shown as stale, never as a number (learned from an earlier tool): a meter that froze
+# A reading older than this is shown as stale, never as a number: a meter that froze
 # is worse than none. Windows are told apart by their length, else by NAMED.
 STALE = timedelta(minutes=30)
 NAMED = {"five_hour": 300, "seven_day": 10080, "weekly": 10080}
@@ -333,7 +333,7 @@ def meters(ctx, providers):
 
 def flag(ctx, provider, over, until):
     """Keep one durable `share` row each time a provider goes over its week share or comes back under. It is the
-    only meter fact that leaves the machine (pushed on ade-records; the owner's call, 27/10/2026): a yes/no and the
+    only meter fact that leaves the machine (pushed on ade-records): a yes/no and the
     reset it lasts until, never a usage number. No row yet reads as not over."""
     last = next((r for r in reversed(records.read(ctx, "share")) if r["provider"] == provider), {})
     if (last.get("over", False), last.get("until")) == (over, until):

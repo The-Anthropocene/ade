@@ -3,7 +3,7 @@
 # cmd: python3 -m unittest tests/test_recurring.py
 # reads: tests/fixture_repo
 # writes: temporary directories only
-from datetime import date, timedelta
+from datetime import timedelta
 
 from ade import config, records
 from tests.helpers import FixtureCase
@@ -19,7 +19,7 @@ class RecurringTest(FixtureCase):
         self.ctx = config.load(self.repo)
 
     def status(self, days=0):
-        return records.merged(self.ctx, "card", date.today() + timedelta(days=days))["c1"]["status"]
+        return records.merged(self.ctx, "card", records.today() + timedelta(days=days))["c1"]["status"]
 
     def land(self):
         records.append(self.ctx, "card", {"id": "c1", "status": "landed", "commit": "abc"})

@@ -14,7 +14,7 @@ import tempfile
 from ade.config import matches
 from ade.refuse import refuse
 
-OPS = {"&&", "||", ";", "|", "&", "\n", "(", ")"}
+OPS = {"&&", "||", ";", "|", "|&", "&", "\n", "(", ")"}
 WRAPPERS = {"sudo", "env", "command", "nohup", "time", "xargs", "nice", "timeout", "exec", "stdbuf", "busybox", "watch"}
 # Options of a wrapper that take their own value as the next word (`sudo -u x`, `nice -n 5`); timeout also takes a duration.
 WRAP_VALUED = {"sudo": {"-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"}, "env": {"-u", "-C", "-S"},
@@ -47,8 +47,11 @@ def segments(command):
         return "<<" + m.group(2) + m.group(3)
 
     command = re.sub(r"<<-?[ \t]*(['\"]?)(\w+)\1([^\n]*)\n(.*?)\n[ \t]*\2[ \t]*(?=\n|$)", _heredoc, command, flags=re.S)  # any other heredoc body is data
-    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|<>()")
+    if os.name != "nt":  # bash folds a backslash-newline away; on Windows a backslash is a path separator, so it is left alone
+        command = re.sub(r"(?<!\\)((?:\\\\)*)\\\n", r"\1", command)
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|<>()\n")
     lex.whitespace_split = True
+    lex.whitespace = " \t\r"  # a newline ends a command; only a quoted one stays inside its word
     lex.commenters = ""
     if os.name == "nt":
         lex.escape = ""  # backslashes are path separators there, not escapes
@@ -57,7 +60,7 @@ def segments(command):
     except ValueError:
         return [command.split()]  # unbalanced quotes: judge the words as they stand
     out, cur = [], []
-    for t in toks:
+    for t in (p for t in toks for p in (re.findall(r"&>>?|[<>]+[&|]?|&&|\|[|&]?|[;&()\n]", t) if t and t[0] in ";&|<>()\n" else [t])):  # a glued run (`);`, `&&(`, `|&`) is several tokens
         if t in OPS:
             out.append(cur)
             cur = []
@@ -226,8 +229,8 @@ def _wide(a, root, cwd):
     a, inside = _temp(a, cwd)
     if inside and _rel(a, root, cwd) is None and not (posixpath.normpath(root.replace("\\", "/")) + "/").startswith(_join(cwd, a) + "/"):
         return False  # the repo itself, or a folder holding it, is never scratch
-    if a in ("/", "~", ".", "..", "*", "~/") or "$" in a or "`" in a:
-        return True  # root, home, the repo itself, or a target the guard cannot resolve: fail closed
+    if a in ("/", ".", "..", "*") or a.startswith("~") or "$" in a or "`" in a:
+        return True  # root, home or anything under it (`~/x`), the repo itself, or a target the guard cannot resolve: fail closed
     return _rel(a, root, cwd) in (None, "", ".")
 
 
@@ -239,9 +242,15 @@ def cure(cfg, rel):
     return "change it by hand (ade.toml), then rerun `ade init` to regenerate the rest"
 
 
+def _inert(command):
+    """The command with single-quoted text and quoted-heredoc bodies emptied: the shell never runs a substitution there."""
+    command = re.sub(r"(<<-?[ \t]*(['\"]?)\\?(\w+)\2[^\n]*\n)(.*?)(\n[ \t]*\3[ \t]*(?=\n|$))", lambda m: m.group(1) + m.group(5) if m.group(2) == "'" else m.group(0), command, flags=re.S)
+    return re.sub(r"""(\\.|"(?:\\.|[^"\\])*")|'[^']*'""", lambda m: m.group(1) or "''", command, flags=re.S)
+
+
 def check(cfg, command, root, cwd, branch):
     """Refuse the first named class the command falls in; return quietly otherwise."""
-    for tick, sub in re.findall(r"`([^`]*)`|\$\(([^()]*)\)", command):
+    for tick, sub in re.findall(r"`([^`]*)`|\$\(([^()]*)\)", _inert(command)):
         check(cfg, tick or sub, root, cwd, branch)  # a backtick or $(...) body runs as a line of its own
     for seg in segments(command):
         cmd, args = _cmd(seg[0]), seg[1:]

@@ -150,12 +150,19 @@ def _reuse(ctx, g, rel, callers):
 _PATCHED = re.compile(r"^\*\*\* (?:Update File|Add File|Delete File|Move to): (.+?)\s*$", re.M)
 
 
-def _patched(data):
-    """Paths in an apply_patch call: tool_name apply_patch, or a Bash command that starts `apply_patch <<`."""
-    command = (data.get("tool_input") or {}).get("command")
+def _command(data):
+    # The command as one string: an argv list is joined, anything else that is not text is "".
+    ti = data.get("tool_input")
+    command = ti.get("command") if isinstance(ti, dict) else None
     if isinstance(command, list):
         command = " ".join(str(a) for a in command)
-    if not isinstance(command, str):
+    return command if isinstance(command, str) else ""
+
+
+def _patched(data):
+    """Paths in an apply_patch call: tool_name apply_patch, or a Bash command that starts `apply_patch <<`."""
+    command = _command(data)
+    if not command:
         return []
     if data.get("tool_name") != "apply_patch" and not re.match(r"\s*apply_patch\s*<<", command):
         return []
@@ -193,7 +200,7 @@ def _first(ctx, data, rel):
 
 def _bash(ctx, data, cwd, top):
     branch = git(top, "rev-parse", "--abbrev-ref", "HEAD", check=False).stdout.strip()
-    command, here = (data.get("tool_input") or {}).get("command", ""), str(Path(cwd).resolve())
+    command, here = _command(data), str(Path(cwd).resolve())
     guard.check(ctx.cfg, command, str(top), here, branch)  # a refusal comes before any briefing
     if _patched(data):  # a Bash `apply_patch <<` envelope: the Edit check (protected paths, briefing)
         return _edit(ctx, data, cwd, top)
@@ -262,7 +269,7 @@ def note_line(ctx, g, rel, deadline):
     f, callers, tests = g["files"][rel], g["callers"].get(rel, []), g["tests"].get(rel, [])
     parts = [f"{rel}: {((f.get('header') or {}).get('what') or 'no header')[:100]}",
              f"{len(callers)} callers, reach {_reach(g, rel)}", f"tests: {', '.join(tests[:2]) or 'none'}"]
-    # Last commit is the slow, load-sensitive part (Atlas saw it time out); it is skipped once the budget is spent.
+    # Last commit is the slow, load-sensitive part; it is skipped once the budget is spent.
     left = deadline - time.monotonic()
     if left > 0:
         try:
@@ -409,11 +416,17 @@ HANDLERS = {"brief": _edit, "bash": _bash, "read": _read, "grep": _grep, "turn-e
 
 def run(args, cwd):
     try:
-        data = json.loads(sys.stdin.read() or "{}")
+        raw = sys.stdin.buffer.read().decode("utf-8", errors="replace") if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+        data = json.loads(raw or "{}")  # bytes as UTF-8, not the locale's; a text-only stdin is already decoded
     except json.JSONDecodeError:
         return 0
+    if not isinstance(data, dict):
+        return 0
     cwd = data.get("cwd") or cwd
-    top = config.toplevel(cwd)
+    try:
+        top = config.toplevel(cwd)
+    except Refusal:
+        return 0  # no git on PATH: a hook has nothing to judge and must never block
     if top is None:
         return 0
     try:

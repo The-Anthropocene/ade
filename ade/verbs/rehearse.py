@@ -183,6 +183,8 @@ SCENARIOS = {
     "newcomer-python": {"start": "python", "steps": [["loop", "c1"],
                                                      ["card", "add", "add a fresh module", "--path", "fresh.py",
                                                       "--done", "it exists"], ["loop", "c2"]]},
+    "newcomer-git-init-first": {"start": "python", "steps": [["loop", "c1"]],
+                                "before": lambda repo, env: _git(repo, env, "init", "-q", "-b", "master")},
     "newcomer-typescript": {"start": "typescript", "needs": "node", "steps": [["loop", "c1"]]},
     "install-existing": {"steps": [["init"], "commit", ["card", "add", "note add", "--path", "calc.py", "--done", "noted"],
                                    ["loop", "c1"], {"argv": ["watch", "--once", "c1"], "says": "landed"},
@@ -231,7 +233,7 @@ SCENARIOS = {
                                       "--done", "strict() refuses other keys"],
                                      _parallel, ["loop", "c2"], ["loop", "c1"]],
                            "allow": {3}, "expect": _main_green},
-    # S2 offline: a card walked into a protected change, a failing proof and a merge conflict; each step says its
+    # A card walked into a protected change, a failing proof and a merge conflict; each step says its
     # stop, and each cure (close, fix main, restart the lane) ends in a landing.
     "stops": {"steps": [["init"], "commit",
                         ["card", "add", "touch the agents file", "--path", "AGENTS.md", "--done", "x"],
@@ -251,11 +253,20 @@ SCENARIOS = {
     "lanes": {"steps": [["init"], "commit", ["card", "add", "note add", "--path", "calc.py", "--done", "noted"],
                         ["card", "add", "note readme", "--path", "README.md", "--done", "noted"],
                         {"argv": ["conduct", "--lanes", "2"], "says": "c1 landed, c2 landed"}]},
-    # S1 offline: a drafted card waits on its accept question, flies once that is answered, and lands untouched.
     # A step may be a dict: its argv (or a callable giving argv from the repo), and a line its output must say.
     "foreign-repo": {"steps": [_foreign, ["init"], "commit",
                                ["card", "add", "touch one module", "--path", "pkg3/mod3.py", "--done", "touched"],
                                {"argv": ["loop", "c1"], "lacks": ["docs/testing.md", "rehearse --coverage", "site/docs/"]}]},
+    "hold-land": {"allow": {3}, "steps": [["init"], "commit", ["card", "add", "note add", "--path", "calc.py", "--done", "noted"],
+                                          {"argv": ["loop", "c1", "--hold-land"], "says": "held by --hold-land"},
+                                          ["card", "list", "--free"], ["decide", "--rulings"],
+                                          {"argv": ["config", "--probe", "--guards"], "says": "blocked"},
+                                          {"argv": lambda repo: ["decide", "--answer", _question(repo), "land"],
+                                           "env": lambda repo: {"CLAUDECODE": "", "CLAUDE_CODE_SESSION_ID": ""}},  # a person's answer
+                                          ["loop", "c1"],
+                                          {"argv": lambda repo: ["wait", "answered", _question(repo), "--bound", "5s"], "says": "met"},
+                                          {"argv": ["telemetry", "export"], "says": "nothing was sent anywhere"}]},
+    # A drafted card waits on its accept question, flies once that is answered, and lands untouched.
     "draft": {"steps": [["init"], "commit", ["card", "draft", "note something"],
                         {"argv": ["conduct"], "says": "nothing open"},
                         {"argv": lambda repo: ["decide", "--answer", _question(repo), "retry: HINT"]},
@@ -321,6 +332,8 @@ def scenario(name, spec, base, env):
     repo.mkdir()
     if spec.get("needs") and not shutil.which(spec["needs"]):
         return {"name": name, "result": "skip", "why": f"{spec['needs']} is not on PATH", "checkpoints": []}
+    if spec.get("before"):
+        spec["before"](repo, env)  # runs on the empty folder, before the starter's init
     if spec.get("start"):
         steps = [["init", "--starter", spec["start"]], *spec["steps"]]
     else:
