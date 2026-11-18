@@ -14,7 +14,7 @@ from ade import host, parts
 from ade.refuse import refuse
 
 TEMPLATE = Path(__file__).with_name("template.toml")  # config.py cannot be imported here: it imports telemetry, which imports this
-ENGINES = ("claude", "codex")
+ENGINES = ("claude", "codex", "opencode", "pi")
 
 
 def config_dir():
