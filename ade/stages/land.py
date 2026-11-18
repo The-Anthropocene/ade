@@ -431,7 +431,10 @@ def open_pr(ctx, c, sha=None):
         except Refusal as r:
             print(r.render())
             records.fired(ctx, r, cid)
-    title = f"{cid}: {c['title'].split('. ')[0].rstrip('.')[:72]}"  # short; the full title is in the body
+    first = c["title"].split(". ")[0].rstrip(".")
+    if len(first) > 72:  # cut at a whole word, "..." included in the 72
+        first = first[:69].rsplit(" ", 1)[0].rstrip(" ,;:-") + "..." if " " in first[:70] else first[:69] + "..."
+    title = f"{cid}: {first}"  # short; the full title is in the body
     body = f"{c['title']}\n\n" + (f"Why: {c['why']}\n\n" if c.get("why") else "") + f"Done when: {c.get('done', '')}"
     cmd = ["gh", "pr", "create", "--base", trunk, "--head", head, "--title", title, "--body-file", "-"]  # body on stdin: cmd.exe ends an argument at a newline
     if stuck:
