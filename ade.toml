@@ -19,7 +19,7 @@ untested_ok = ["ade/__main__.py", "bin/ade"]  # entry shims: two lines that call
 [budgets]
 core = ["ade/*", "bin/*"]
 core_exclude = []
-tests = 200  # Connor's hard cap on the kit's own test functions under tests/ (CHARTER budget table). Not a ratchet: a prune never lowers it, and a truly needed test may be added up to it, with rehearsal, screenshots and logs as proof first.
+tests = 200  # the hard cap on the kit's own test functions under tests/. Not a ratchet: a prune never lowers it, and a truly needed test may be added up to it, with rehearsal, screenshots and logs as proof first.
 
 # One row per component of ARCHITECTURE.md section 2; that table is the reasoning, this is the enforced copy.
 # Globs use fnmatch, where * crosses '/'. Rows may name files that do not exist yet.
@@ -112,11 +112,11 @@ globs = ["ade/verbs/rehearse.py"]
 lines = 400
 
 [review]
-# Trial (Connor 11/13 Nov): opposite-engine review where codex is on PATH (Mac-flown cards); elsewhere the same engine reviews and the review_verdict row says why. 15 opposite-reviewed cards, then assess each Sol-driven change for value and fit (could the gap be documented or fixed by subtraction instead?); revert both lines if no value.
+# Trial: opposite-engine review where codex is on PATH; elsewhere the same engine reviews and the review_verdict row says why. Assess after 15 opposite-reviewed cards; revert both lines if no value.
 engine = "opposite"
 
-# Reviewer calibration pilot (c605/RC2, Connor 6 Nov 13:50 "sure, but i'd pilot the change"): one good catch and one
-# bad approval from our records. RC2 compares the next 15 reviewed cards with the 15 before; if nil change, remove.
+# Reviewer calibration pilot: one good catch and one
+# bad approval from the kit's records. Compare the next 15 reviewed cards with the 15 before; if nil change, remove.
 [roles.reviewer]
 system_prompt = "roles/reviewer.examples.md"
 effort = { codex = "medium" }
