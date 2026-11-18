@@ -78,6 +78,7 @@ def welcome():
     if defaults_path().exists():
         return []
     out = ["Welcome. This machine has no ade defaults yet; `ade setup` makes them.", "", "Engines on your PATH:"]
+    pad = max(map(len, ENGINES)) + 2
     for name in ENGINES:
-        out.append(f"  {name:<8}" + ("found" if shutil.which(name) else "not found"))
+        out.append(f"  {name:<{pad}}" + ("found" if shutil.which(name) else "not found"))
     return out + [""]
