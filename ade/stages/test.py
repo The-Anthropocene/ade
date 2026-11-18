@@ -243,7 +243,7 @@ def run(ctx, c):
         label += f" (after {len(ctx.cfg['tests']['always'])} always-run)"
     timing = re.compile(ctx.cfg["tests"]["timing"], re.I)
     total = "whole suite" if chosen is None else f"{len(chosen)} selected"
-    failed, names, carried, retried, tail, walls, results = None, "", [], [], "", {}, {}
+    failed, names, carried, retried, tail, walls, results, nothing = None, "", [], [], "", {}, {}, []
     vals = values(ctx, lp)
     for template in commands(ctx.cfg, g, chosen):
         argv = host.substitute(template, **vals)
@@ -252,6 +252,9 @@ def run(ctx, c):
         if code and code != 124 and timing.search(out):  # 124 is the tests timeout: a hang costs one, not two
             retried.append(shlex.join(argv))  # one isolated retry for a timing-shaped failure, never more
             code, out = _run(ctx, argv, lp)
+        if code == 5 and EMPTY.search(out):  # the runner found no tests: nothing to run, not a red
+            nothing.append(shlex.join(template))
+            code = 0
         # Each command's own time and result, so a typecheck's share of the stage (and which command failed) shows.
         walls[shlex.join(template)] = round(time.monotonic() - began, 2)
         results[shlex.join(template)] = "fail" if code else "pass"
@@ -277,5 +280,7 @@ def run(ctx, c):
     if carried and len(carried) == len(results):  # every command that ran was red on main too: nothing ran green
         return Result("advance", f"nothing ran green: {label}; {len(carried)} red on main too, carried to the residuals card "
                                  "(check the [tests] command with `ade config tests`)")
+    if nothing and len(nothing) == len(results):
+        return Result("advance", f"no tests found by {', '.join(nothing)}")
     extra = f"; {len(carried)} red on main too, carried to the residuals card" if carried else ""
     return Result("advance", f"passed: {label}{extra}")
