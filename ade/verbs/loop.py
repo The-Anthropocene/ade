@@ -96,6 +96,9 @@ def run(args, cwd):
 def _run(args, cwd):
     ctx = config.load(cwd)
     c = stages.card(ctx, args.card, args.theirs)
+    if c["status"] == "closed":  # a person's decision that it should not fly
+        print(f"{c['id']} was closed: {c.get('closed_why', '')}")
+        return 1
     if c["status"] == "landed":  # no lane, no engine call: the land stage only re-ships a cut-off pr-mode push
         res = stages.FUNCS["land"](ctx, c)
         print(f"{c['id']} {res.note}")
