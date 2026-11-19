@@ -12,6 +12,20 @@ license-files = ["LICENSE"]
 authors = [{ name = "Practice Atlas Ltd" }]
 requires-python = ">=3.11"
 dependencies = []
+keywords = ["agents", "agentic-workflows", "meta-harness", "claude-code", "codex", "opencode", "pi", "cli", "developer-tools"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Build Tools",
+]
 
 [project.urls]
 Homepage = "https://atlas-ade.dev/"
