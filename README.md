@@ -29,6 +29,6 @@ ADE was built in private first, by Connor Roberts at Practice Atlas Ltd, using A
 ## More
 
 - Docs: https://atlas-ade.dev/docs/ (install, quickstart, the verbs)
-- How the loop works: [ARCHITECTURE.md](ARCHITECTURE.md)
-- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Licence: MIT, see [LICENSE](LICENSE). The Atlas ADE name and logo are not part of the licence.
+- How the loop works: [ARCHITECTURE.md](https://github.com/The-Anthropocene/ade/blob/main/ARCHITECTURE.md)
+- Contributing: [CONTRIBUTING.md](https://github.com/The-Anthropocene/ade/blob/main/CONTRIBUTING.md)
+- Licence: MIT, see [LICENSE](https://github.com/The-Anthropocene/ade/blob/main/LICENSE). The Atlas ADE name and logo are not part of the licence.
