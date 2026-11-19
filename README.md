@@ -7,7 +7,7 @@ Atlas ADE drives Claude Code, Codex, OpenCode or Pi through one loop per card (l
 <!-- GIF: 20 to 30 seconds, under 1 MB, recorded by the demo thread -->
 
 ```sh
-uv tool install git+https://github.com/The-Anthropocene/ade    # or: pipx install git+https://github.com/The-Anthropocene/ade
+uv tool install atlas-ade    # or: pipx install atlas-ade
 ```
 
 ```sh
