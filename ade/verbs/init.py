@@ -95,6 +95,9 @@ def start(folder, starter, dry_run, args):
     git(folder, "add", "-A")
     git(folder, "commit", "-q", "-m", f"start {folder.name} with ade ({starter} starter)")
     row = records.append(ctx, "card", {**card, "status": "open", "probed_at": stages.probe(ctx)}, prefix="c")
+    ctx.state.mkdir(exist_ok=True)
+    host.write(ctx.state / "template.toml", host.read(install.TEMPLATE))
+    host.write(ctx.state / "kit.json", json.dumps({"kit": install.kit()}) + "\n")
     print(f"first card {row['id']}: {row['title']}\nnext: ade loop {row['id']}")
     return 0
 
