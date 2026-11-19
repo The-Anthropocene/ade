@@ -30,4 +30,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid
-      - run: python -m unittest -v
+      - run: python tools/slow_tests.py
