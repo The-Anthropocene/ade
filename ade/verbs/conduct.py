@@ -140,20 +140,25 @@ def flying(ctx):
     return out
 
 
-def free(ctx, cards, busy):
+def free(ctx, cards, busy, why=None):
     """The open cards that can fly now: in board order, skipping any whose reach meets a card in `busy`, and each
-    card picked also counts as busy for the ones after it."""
+    card picked also counts as busy for the ones after it. A dict `why` gets each skipped card's first clash:
+    (the card it meets, the folder mark the clash came through or None)."""
     g = graph.load(ctx.root, ctx.cfg) or {"files": {}, "callers": {}, "tests": {}}
     prose, every = ctx.cfg["rigour"]["no_review"], records.merged(ctx, "card")
-    taken = [graph.reach(g, every[b]["paths"], prose) for b in busy if b in every]
+    taken = [(b, graph.reach(g, every[b]["paths"], prose)) for b in busy if b in every]
     out = []
     for c in cards:
         if c["status"] in ("landed", "closed") or c["id"] in busy:
             continue
         r = graph.reach(g, c["paths"], prose)
-        if not any(graph.clash(r, t) for t in taken):
+        hit = next(((b, t) for b, t in taken if graph.clash(r, t)), None)
+        if hit is None:
             out.append(c)
-            taken.append(r)
+            taken.append((c["id"], r))
+        elif why is not None:
+            b, t = hit
+            why[c["id"]] = (b, next((d for d in sorted(r | t) if d.endswith("/") and graph.clash({d}, t if d in r else r)), None))
     return out
 
 
@@ -187,7 +192,7 @@ def _answers(ctx, cid):
 def lanes(ctx, ids, n, tried=None):
     """Keep up to n cards flying, each as its own detached `ade conduct CARD` session; when one ends, pick again.
     Each card is tried once per run, so the run ends when nothing is flying and nothing untried is free."""
-    tried, refused = set() if tried is None else tried, set()
+    tried, refused, told = set() if tried is None else tried, set(), set()
     every = records.merged(ctx, "card")
     named = {i: every[i]["title"] for i in ids or () if i in every}  # a landing can renumber an open card mid-run
     air, beat = {}, time.time()
@@ -207,7 +212,14 @@ def lanes(ctx, ids, n, tried=None):
         _reap()
         up = flying(ctx)
         again = lambda c: c["id"] in tried and not waiting(ctx, c) and _answers(ctx, c["id"]) - _ANSWERED.get(c["id"], set())
-        for c in free(ctx, [c for c in board if c["id"] not in tried or again(c)], up)[:max(0, n - len(up))]:
+        blocked = {}
+        picked = free(ctx, [c for c in board if c["id"] not in tried or again(c)], up, blocked)[:max(0, n - len(up))]
+        for i, (a, folder) in blocked.items():
+            if i not in told:
+                told.add(i)
+                print(f"waits {i}: its paths meet {a}'s, so it flies after {a} lands"
+                      + (f"; {'the whole repo' if folder == '/' else folder} stands for a file not written yet or code the graph has no edges for" if folder else ""))
+        for c in picked:
             tried.add(c["id"])
             _ANSWERED[c["id"]] = _answers(ctx, c["id"])
             try:
