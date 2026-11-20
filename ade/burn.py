@@ -45,7 +45,7 @@ def rows(ctx, since, info=None):
     """One dict per API message (Claude: once per message id and request id) or Codex token delta since `since`."""
     cfg = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"))
     lanes, nrepos = telemetry.lane_calls(ctx)
-    seen, out = set(), []
+    seen, out = {}, []
     if info is not None:
         info["lane_repos"] = nrepos
     for line in _lines(cfg, "projects/**/*.jsonl", since):
@@ -55,15 +55,16 @@ def rows(ctx, since, info=None):
         if not (r and r.get("type") == "assistant" and isinstance(m, dict) and isinstance(m.get("usage"), dict) and at and at >= since):
             continue
         key = (m.get("id"), r.get("requestId"))
-        if key in seen:  # an API message is written once per content block
-            continue
-        seen.add(key)
         u = m["usage"]
+        if key in seen:  # one message is written as several lines; the first may hold a partial count, so keep each field's max
+            seen[key].update({k: max(seen[key][k], _n(u, k)) for k in telemetry.KINDS})
+            continue
         lane = any(end - timedelta(seconds=w + 5) <= at <= end + timedelta(seconds=5) for end, w in lanes if end)
-        out.append({"day": at.astimezone(timezone.utc).date().isoformat(), "model": str(m.get("model", "?")),
-                    "surface": "ADE lanes" if lane else SURFACE.get(r.get("entrypoint"), "other"),
-                    "thread": "subagent" if r.get("isSidechain") else "main", "priced": True,
-                    **{k: _n(u, k) for k in telemetry.KINDS}})
+        seen[key] = {"day": at.astimezone(timezone.utc).date().isoformat(), "model": str(m.get("model", "?")),
+                     "surface": "ADE lanes" if lane else SURFACE.get(r.get("entrypoint"), "other"),
+                     "thread": "subagent" if r.get("isSidechain") else "main", "priced": True,
+                     **{k: _n(u, k) for k in telemetry.KINDS}}
+        out.append(seen[key])
     home = Path(os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex"))
     last = {}
     for f in sorted((home / "sessions").glob("*/*/*/rollout-*.jsonl")):
