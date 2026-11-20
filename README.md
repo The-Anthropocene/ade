@@ -4,6 +4,8 @@ A small agentic meta-harness, so that your usage goes on building.
 
 Atlas ADE drives Claude Code, Codex, OpenCode or Pi through one loop per card (lane, build, review, test, land), keeps a generated graph of your code, and records what every card cost.
 
+![One card from lane to land with ade](https://raw.githubusercontent.com/The-Anthropocene/ade/main/demo.gif)
+
 ```sh
 uv tool install atlas-ade    # or: pipx install atlas-ade
 ```
