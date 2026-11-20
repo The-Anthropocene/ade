@@ -107,7 +107,7 @@ def week(ctx, since=None):
     cards = {c: {"calls": t["calls"], "tokens": sum(t[k] for k in telemetry.KINDS), "wall_s": round(t["wall_s"], 1)}
              for c, t in sorted(telemetry.totals(ctx, since=start)[0].items(), key=lambda x: -sum(x[1][k] for k in telemetry.KINDS))}
     total = {k: round(sum(r[k] for r in data), 3) for k in ("tokens", "points", *telemetry.KINDS)}
-    meters = {n: {"state": s, "week": w} for n in ("claude", "codex") for s, w, *_ in [telemetry.reading(ctx, n)] if s != "none"}
+    meters = {n: {"state": s, "week": w, "five_hour": f} for n in ("claude", "codex") for s, w, f in [telemetry.reading(ctx, n)] if s != "none"}
     cl = meters.get("claude", {})
     gap = cl.get("week") if cl.get("state") == "ok" else None
     rs = telemetry._when(reset) if reset else None
@@ -141,7 +141,7 @@ def show(d):
     print(f"lanes from {d['lane_repos']} repo{'s' * (d['lane_repos'] != 1)} on this machine")
     print("by class: " + ", ".join(f"{k[7:] if k.startswith('tokens_') else k} {v}" for k, v in d["by_class"].items()))
     for n, v in d["meters"].items():
-        print(f"{n} meter: {v['state']}, week {'?' if v['week'] is None else format(v['week'], '.0%')}")
+        print(f"{n} meter: {v['state']}, week {'?' if v['week'] is None else format(v['week'], '.0%')}" + (", no five-hour window reported" if v["five_hour"] is None else f", 5h {v['five_hour']:.0%}"))
     if d["priced_vs_meter_points"] is not None:
         print(f"meter minus priced burn: {d['priced_vs_meter_points']:.1f} points" + (f" (only the week since {d['gap_since']})" if d.get("gap_since") else ""))
     elif d.get("gap_may_span_reset"):
