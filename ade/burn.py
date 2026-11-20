@@ -104,6 +104,8 @@ def week(ctx, since=None):
             for k in ("tokens", "points", *telemetry.KINDS):
                 t[r[key]][k] += r[k]
         return {n: {k: round(v, 3) for k, v in sorted(t[n].items())} for n in sorted(t)}
+    cards = {c: {"calls": t["calls"], "tokens": sum(t[k] for k in telemetry.KINDS), "wall_s": round(t["wall_s"], 1)}
+             for c, t in sorted(telemetry.totals(ctx, since=start)[0].items(), key=lambda x: -sum(x[1][k] for k in telemetry.KINDS))}
     total = {k: round(sum(r[k] for r in data), 3) for k in ("tokens", "points", *telemetry.KINDS)}
     meters = {n: {"state": s, "week": w} for n in ("claude", "codex") for s, w, *_ in [telemetry.reading(ctx, n)] if s != "none"}
     cl = meters.get("claude", {})
@@ -118,7 +120,7 @@ def week(ctx, since=None):
     seen = max((r["seen"] for r in telemetry.readings(ctx) if r["provider"] == "claude" and "week" in r), default=None)
     return {"since": start.isoformat(timespec="seconds"), "days": round(days, 2), "total": total,
             "per_day_average": {k: round(v / days, 3) for k, v in total.items()},
-            "by_day": by("day"), "by_surface": by("surface"), "by_thread": by("thread"), "by_model": by("model"),
+            "by_day": by("day"), "by_surface": by("surface"), "by_thread": by("thread"), "by_model": by("model"), "by_card": cards,
             "by_class": {k: total[k] for k in telemetry.KINDS}, "meters": meters,
             "meter_seen": seen if cl and cl["state"] != "ok" else None,
             "priced_vs_meter_points": None if gap is None else round(gap * 100 - sum(r["points"] for r in gap_rows), 3),
@@ -133,6 +135,9 @@ def show(d):
         print(f"by {title}:")
         for n, v in d[key].items():
             print(f"  {n:<22} {v['tokens']:>12} tokens {v['points']:>8.1f} points")
+    print("by card (ADE lane calls only):")
+    for c, v in d["by_card"].items():
+        print(f"  {c:<22} {v['calls']:>5} calls {v['tokens']:>12} tokens {v['wall_s'] / 60:>8.1f} min")
     print(f"lanes from {d['lane_repos']} repo{'s' * (d['lane_repos'] != 1)} on this machine")
     print("by class: " + ", ".join(f"{k[7:] if k.startswith('tokens_') else k} {v}" for k, v in d["by_class"].items()))
     for n, v in d["meters"].items():
