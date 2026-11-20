@@ -49,7 +49,7 @@ Start with `ade handover --role ROLE`. Verbs:
   `ade setup`
 - `ade status`: one-line state for the Claude Code status line: repo, open cards, last stage outcome
   `ade status [--line]`
-- `ade telemetry`: show usage per card and per provider for the week, each week meter against its share; export OTLP files locally
+- `ade telemetry`: show usage per card and per provider for the week, each week meter against its share; export OTLP files locally; --week: the 7-day burn from this machine's transcripts
   `ade telemetry [export] [--flights] [--outcomes [--since DATE]] [--week [--json] [--since ISO]]`
 - `ade uninstall`: remove everything `ade init` generated (hooks, rules, agents, AGENTS.md block, graph); keep ade.toml and records
   `ade uninstall [--dry-run]`

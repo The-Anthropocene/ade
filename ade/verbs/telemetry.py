@@ -1,5 +1,5 @@
 # id: ade.verbs.telemetry
-# what: show usage per card and per provider for the week, each week meter against its share; export OTLP files locally
+# what: show usage per card and per provider for the week, each week meter against its share; export OTLP files locally; --week: the 7-day burn from this machine's transcripts
 # cmd: ade telemetry [export] [--flights] [--outcomes [--since DATE]] [--week [--json] [--since ISO]]
 # reads: .ade/records.jsonl usage rows, ade.toml [usage]; with --week, ade.burn's sources
 # writes: .ade/telemetry/ (export only)
