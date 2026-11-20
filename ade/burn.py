@@ -132,7 +132,8 @@ def week(ctx, since=None):
             first = e["resets"][0]
             e["reset"] = any(a and b and abs(a - b) > timedelta(hours=1) for a, b in zip(e["resets"], e["resets"][1:])) or bool(last and first and abs(first - last) > timedelta(hours=1))
             last = e["resets"][-1]
-    mbd = {n: {d: {"week": e["week"], "reset": e["reset"]} for d, e in sorted(v.items())} for n, v in sorted(mbd.items())}
+    mbd = {n: {d: {"week": e["week"], "reset": e["reset"], "fell_without_reset": bool(i and not e["reset"] and e["week"] < v[sorted(v)[i - 1]]["week"])}
+               for i, (d, e) in enumerate(sorted(v.items()))} for n, v in sorted(mbd.items())}
     return {"meter_by_day": mbd, "since": start.isoformat(timespec="seconds"), "days": round(days, 2), "total": total,
             "per_day_average": {k: round(v / days, 3) for k, v in total.items()},
             "by_day": by("day"), "by_surface": by("surface"), "by_thread": by("thread"), "by_model": by("model"), "by_card": cards,
@@ -170,7 +171,7 @@ def show(d):
         print("meter by day:")
         for n, v in d["meter_by_day"].items():
             for day, e in v.items():
-                print(f"  {day}  {n} {e['week']:.0%}" + (" (reset)" if e["reset"] else ""))
+                print(f"  {day}  {n} {e['week']:.0%}" + (" (reset)" if e["reset"] else "") + (" (fell, no weekly reset)" if e["fell_without_reset"] else ""))
     print(d["blind"])
 
 
