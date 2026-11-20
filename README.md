@@ -6,6 +6,8 @@ Atlas ADE drives Claude Code, Codex, OpenCode or Pi through one loop per card (l
 
 ![One card from lane to land with ade](https://raw.githubusercontent.com/The-Anthropocene/ade/main/demo.gif)
 
+![How a card flies through ADE: you set the work, the pilot (the agent driving ADE) files cards, and the conductor flies each card through lane, build, review, test, land and push, with six hooks on every agent call](https://atlas-ade.dev/assets/flight-deck.png)
+
 ```sh
 uv tool install atlas-ade    # or: pipx install atlas-ade
 ```
