@@ -125,7 +125,14 @@ def week(ctx, since=None):
             e = mbd.setdefault(r["provider"], {}).setdefault(at.astimezone(timezone.utc).date().isoformat(), {"resets": []})
             e.update(week=r["week"])
             e["resets"].append(telemetry._when(r.get("week_resets")))  # an hour's drift is the same week, as in telemetry
-    mbd = {n: {d: {"week": e["week"], "reset": any(a and b and abs(a - b) > timedelta(hours=1) for a, b in zip(e["resets"], e["resets"][1:]))} for d, e in sorted(v.items())} for n, v in sorted(mbd.items())}
+    for v in mbd.values():  # a reset between one day's last reading and the next day's first is marked on the later day
+        last = None
+        for d in sorted(v):
+            e = v[d]
+            first = e["resets"][0]
+            e["reset"] = any(a and b and abs(a - b) > timedelta(hours=1) for a, b in zip(e["resets"], e["resets"][1:])) or bool(last and first and abs(first - last) > timedelta(hours=1))
+            last = e["resets"][-1]
+    mbd = {n: {d: {"week": e["week"], "reset": e["reset"]} for d, e in sorted(v.items())} for n, v in sorted(mbd.items())}
     return {"meter_by_day": mbd, "since": start.isoformat(timespec="seconds"), "days": round(days, 2), "total": total,
             "per_day_average": {k: round(v / days, 3) for k, v in total.items()},
             "by_day": by("day"), "by_surface": by("surface"), "by_thread": by("thread"), "by_model": by("model"), "by_card": cards,
