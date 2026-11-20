@@ -82,6 +82,11 @@ def rename(ctx, old, new):
 def run(ctx, c):
     lp = lane_path(ctx, c["id"])
     if (lp / ".git").exists():
+        common = git(lp, "rev-parse", "--path-format=absolute", "--git-common-dir", check=False)
+        mine = git(ctx.root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        if common.returncode or os.path.realpath(common.stdout.strip()) != os.path.realpath(mine):
+            refuse("lane.refused", f"the lane at {lp} belongs to another checkout, such as a project folder replaced at the same path",
+                   f"mv {lp} {lp}.stale, run `git worktree prune` in the repo, then `ade loop {c['id']}` again")
         if git(lp, "rev-parse", "--abbrev-ref", "HEAD", check=False).stdout.strip() == main(ctx):
             refuse("lane.refused", f"lane {lp} is on the trunk branch {main(ctx)}, so its work would land on trunk itself",
                    f"git -C {lp} checkout -b {branch(c['id'])}")
