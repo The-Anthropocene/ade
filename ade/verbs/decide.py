@@ -269,8 +269,10 @@ def answer(ctx, d, text):
     if d.get("rec") == "land" and text.lower().startswith("land") and answerer()["by"] == "agent":
         own = "ade/install.py" in (d.get("paths") or [])  # the card's own generator rendered protected files
         if own or ctx.cfg.get("conduct", {}).get("answerer") != "agent":
-            print(f"an agent's land will not land {d.get('card') or d['id']}: a person answers"
-                  + ("" if own else ' (or set [conduct] answerer = "agent" in ade.toml)'))
+            engine = answerer()["engine"]
+            print(f"an agent's land will not land {d.get('card') or d['id']}: "
+                  + ("a person answers" if own else f"this shell carries {engine}'s session marker, which a `!` command inside it inherits too; "
+                     'answer from your own terminal (or set [conduct] answerer = "agent" in ade.toml)'))
     if d.get("card") and text.split()[0].lower().strip(".,:;") == "drop":
         drop_lane(ctx, d["card"])
         c = records.merged(ctx, "card").get(d["card"])
