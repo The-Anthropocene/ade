@@ -1,7 +1,7 @@
 # id: ade.burn
 # what: the 7-day burn as one command: this machine's Claude Code and Codex token use, per day and by surface, thread, model and class, priced in meter points
 # cmd: ade telemetry --week [--json] [--since ISO]
-# reads: $CLAUDE_CONFIG_DIR or ~/.claude projects/**/*.jsonl (usage, model, timestamp, entrypoint, isSidechain only), $CODEX_HOME or ~/.codex sessions token counts, .ade/records.jsonl usage rows and the machine lanes.jsonl (lane labels), ade/meter.json
+# reads: $CLAUDE_CONFIG_DIR or ~/.claude projects/**/*.jsonl (usage, model, timestamp, entrypoint, isSidechain only), $CODEX_HOME or ~/.codex sessions token counts, .ade/records.jsonl usage rows and the machine lanes.jsonl (lane labels), ade/meter.json, the meter readings (telemetry.readings)
 # writes: -
 import json
 import os
@@ -118,7 +118,15 @@ def week(ctx, since=None):
     gap_rows = [r for r in data if wk is None or r["day"] >= wk.astimezone(timezone.utc).date().isoformat()]
     from_week = wk.date().isoformat() if wk and wk > start else None
     seen = max((r["seen"] for r in telemetry.readings(ctx) if r["provider"] == "claude" and "week" in r), default=None)
-    return {"since": start.isoformat(timespec="seconds"), "days": round(days, 2), "total": total,
+    mbd = {}  # per provider and UTC day: the last weekly reading, and whether the day crossed a weekly reset
+    for r in telemetry.readings(ctx):
+        at = telemetry._when(r["seen"])
+        if at and at >= start and isinstance(r.get("week"), (int, float)):
+            e = mbd.setdefault(r["provider"], {}).setdefault(at.astimezone(timezone.utc).date().isoformat(), {"resets": []})
+            e.update(week=r["week"])
+            e["resets"].append(telemetry._when(r.get("week_resets")))  # an hour's drift is the same week, as in telemetry
+    mbd = {n: {d: {"week": e["week"], "reset": any(a and b and abs(a - b) > timedelta(hours=1) for a, b in zip(e["resets"], e["resets"][1:]))} for d, e in sorted(v.items())} for n, v in sorted(mbd.items())}
+    return {"meter_by_day": mbd, "since": start.isoformat(timespec="seconds"), "days": round(days, 2), "total": total,
             "per_day_average": {k: round(v / days, 3) for k, v in total.items()},
             "by_day": by("day"), "by_surface": by("surface"), "by_thread": by("thread"), "by_model": by("model"), "by_card": cards,
             "by_class": {k: total[k] for k in telemetry.KINDS}, "meters": meters,
@@ -151,6 +159,11 @@ def show(d):
             print("no fresh meter reading since the week reset")
         else:
             print(f"no fresh meter reading since {d['meter_seen']}")
+    if d["meter_by_day"]:
+        print("meter by day:")
+        for n, v in d["meter_by_day"].items():
+            for day, e in v.items():
+                print(f"  {day}  {n} {e['week']:.0%}" + (" (reset)" if e["reset"] else ""))
     print(d["blind"])
 
 
