@@ -1,5 +1,5 @@
 // id: ade.mods.flight-band
-// what: Claude Code mod: every 3 s reads ADE's records and draws the flying card's five stages (lane, build, review, test, land) above the prompt, keeps a card that lands on screen with all five ticked for the next two polls (or until another card's journal row appears) so a test and land finishing between polls still show, with a toast on land or park and a pane on vscode and Claude Desktop (terminal gets the band only); it writes nothing to the transcript, and a Remote Control viewer, which gets only the transcript stream and no ui.render or toasts, sees none of it
+// what: Claude Code mod: every 1 s reads ADE's records and draws the flying card's five stages (lane, build, review, test, land) above the prompt, keeps a card that lands on screen with all five ticked until another card starts flying or the session ends, so the run completes in place, with a toast on land or park and a pane on vscode and Claude Desktop (terminal gets the band only); it writes nothing to the transcript, and a Remote Control viewer, which gets only the transcript stream and no ui.render or toasts, sees none of it
 // cmd: -
 // reads: .ade/records.jsonl
 // writes: -
@@ -14,8 +14,6 @@ type Row = Record<string, unknown>
 let flight: Flight | null = null
 let paneOpened = false
 let seen: number | null = null
-let hold = 0 // polls left to keep a landed card's ticks on screen
-let held: string | null = null // the card whose ticks are being held
 
 const text = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -88,7 +86,7 @@ const line = (f: Flight) =>
 
 export const register: Register = on => {
   on('session.start', ($, e, next) => {
-    $.clock.every(3000, async () => {
+    $.clock.every(1000, async () => {
       let raw: string
       try {
         raw = await $.fs.read('.ade/records.jsonl')
@@ -100,15 +98,9 @@ export const register: Register = on => {
       seen = rows.length
       let now = scan(rows)
       if (!now && flight) {
+        // a landed card stays, all five ticked, until another card starts flying
         const landed = rows.some(r => r.type === 'card' && r.id === flight!.id && r.status === 'landed')
-        if (landed && held !== flight.id) {
-          now = { ...flight, marks: STAGES.map(() => '✓') }
-          held = flight.id
-          hold = 2
-        } else if (landed && hold > 0) {
-          now = flight
-          hold--
-        }
+        if (landed) now = { ...flight, marks: STAGES.map(() => '✓') }
       }
       const key = (f: Flight | null) => (f ? `${f.id}|${f.marks.join('')}` : '')
       const changed = key(now) !== key(flight)
