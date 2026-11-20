@@ -39,6 +39,7 @@ ADE was built in private first, by Connor Roberts at Practice Atlas Ltd, using A
 ## More
 
 - Any issues? [Open an issue on GitHub](https://github.com/The-Anthropocene/ade/issues), or email support@atlas-ade.dev.
+- Work with me: I can set ADE up in your repo, port your existing agent workflow onto it, or work contract days on agent tooling. Email support@atlas-ade.dev.
 - Docs: https://atlas-ade.dev/docs/ (install, quickstart, the verbs)
 - How the loop works: [ARCHITECTURE.md](https://github.com/The-Anthropocene/ade/blob/main/ARCHITECTURE.md)
 - Contributing: [CONTRIBUTING.md](https://github.com/The-Anthropocene/ade/blob/main/CONTRIBUTING.md)
