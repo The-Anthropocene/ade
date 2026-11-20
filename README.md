@@ -4,7 +4,7 @@ A small agentic meta-harness, so that your usage goes on building.
 
 Atlas ADE drives Claude Code, Codex, OpenCode or Pi through one loop per card (lane, build, review, test, land), keeps a generated graph of your code, and records what every card cost.
 
-![One card from lane to land with ade](https://raw.githubusercontent.com/The-Anthropocene/ade/main/demo.gif)
+![You ask in Claude Code; your pilot cards it and flies it to landed with ade](https://raw.githubusercontent.com/The-Anthropocene/ade/main/demo.gif)
 
 ![How a card flies through ADE: you set the work, the pilot (the agent driving ADE) files cards, and the conductor flies each card through lane, build, review, test, land and push, with six hooks on every agent call](https://atlas-ade.dev/assets/flight-deck.png)
 
