@@ -12,7 +12,7 @@ This skill only gets ADE into a project. It needs a shell there. With no shell, 
 1. Run `ade --version`. If the command is missing, ask the person before installing anything, then run `uv tool install atlas-ade` (or `pipx install atlas-ade`).
 2. If the project already has `ade.toml`, ADE is set up here: use the project's own `ade` skill and stop.
 3. In a new, empty folder, run `ade init`.
-4. In a repository the person already has, work on a clean checkout of the main branch. Run `ade init --dry-run` first and write nothing yet. Show the person every rule it says it would remove from `.claude/settings.json`, and ask which to keep. For each one they keep, name the line to add under `[permissions.allow]` or `[permissions.deny]` in `ade.toml`; that file is protected, so the person adds them. Only after that, run `ade init`.
+4. In a repository the person already has, work on a clean checkout of the main branch. Run `ade init --dry-run` first and write nothing yet. Show the person every rule it says it would remove from `.claude/settings.json`, and ask which to keep. Once they have answered, run `ade init`. For each rule they keep, name the line to add under `[permissions.allow]` or `[permissions.deny]` in the `ade.toml` it wrote; that file is protected, so the person adds them, then run `ade init` again to put them back.
 5. Read the `ade` skill that `ade init` installed (`.claude/skills/ade/SKILL.md`). Walk the person through the setup choices, one at a time: which model each role uses, which parts of the kit to keep, and the test command. From here on, that skill is the guide.
 
 To see a full loop without spending any usage, offer `ade rehearse`.
