@@ -1,5 +1,5 @@
 // id: ade.mods.flight-band
-// what: Claude Code mod: every 3 s reads ADE's records and draws the flying card's five stages (lane, build, review, test, land) above the prompt, with a toast on land or park and a pane on vscode and Claude Desktop (terminal gets the band only); it writes nothing to the transcript, and a Remote Control viewer, which gets only the transcript stream and no ui.render or toasts, sees none of it
+// what: Claude Code mod: every 3 s reads ADE's records and draws the flying card's five stages (lane, build, review, test, land) above the prompt, keeps a card that lands on screen with all five ticked for the next two polls (or until another card's journal row appears) so a test and land finishing between polls still show, with a toast on land or park and a pane on vscode and Claude Desktop (terminal gets the band only); it writes nothing to the transcript, and a Remote Control viewer, which gets only the transcript stream and no ui.render or toasts, sees none of it
 // cmd: -
 // reads: .ade/records.jsonl
 // writes: -
@@ -14,6 +14,8 @@ type Row = Record<string, unknown>
 let flight: Flight | null = null
 let paneOpened = false
 let seen: number | null = null
+let hold = 0 // polls left to keep a landed card's ticks on screen
+let held: string | null = null // the card whose ticks are being held
 
 const text = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -96,7 +98,18 @@ export const register: Register = on => {
       const rows = parse(raw)
       for (const t of toasts(rows, seen)) $.ui.toast(t)
       seen = rows.length
-      const now = scan(rows)
+      let now = scan(rows)
+      if (!now && flight) {
+        const landed = rows.some(r => r.type === 'card' && r.id === flight!.id && r.status === 'landed')
+        if (landed && held !== flight.id) {
+          now = { ...flight, marks: STAGES.map(() => '✓') }
+          held = flight.id
+          hold = 2
+        } else if (landed && hold > 0) {
+          now = flight
+          hold--
+        }
+      }
       const key = (f: Flight | null) => (f ? `${f.id}|${f.marks.join('')}` : '')
       const changed = key(now) !== key(flight)
       flight = now
