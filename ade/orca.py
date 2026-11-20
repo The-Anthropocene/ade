@@ -2,12 +2,13 @@
 # what: the Orca adapter: show lanes as Orca worktrees with a terminal following each card, and the board; never drives
 # cmd: -
 # reads: ade.toml [cockpit], $ORCA_CLI_COMMAND / $ORCA_DEV_REPO_ROOT / $ORCA_RUNTIME_CLIENT, orca's JSON replies
-# writes: Orca's view only (repo, its imported lanes, worktree status and comment, terminals); .ade/cockpit.command (macOS launcher); nothing else in the repo
+# writes: Orca's view only (repo, its imported lanes, worktree status and comment, terminals); .ade/cockpit.command (macOS launcher), .ade/cockpit.pid (launch claim); nothing else in the repo
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
 
 from ade import install
 from ade.lib import agent
@@ -221,12 +222,22 @@ def strip(ctx, env=None, launch=None):
     try:
         if on(ctx) == "herdr" or reachable():
             return board(ctx)
+        pidfile = ctx.root / ".ade" / "cockpit.pid"
         try:
-            if _alive(int((ctx.root / ".ade" / "cockpit.pid").read_text().strip())):
+            word = pidfile.read_text().split()
+            if word[0] == "launching":  # a fresh claim counts as open: terminals and python start slowly
+                if time.time() - float(word[1]) < 120:
+                    return
+            elif _alive(int(word[0])):
                 return
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
+            pass
+        try:
+            pidfile.write_text(f"launching {int(time.time())}")
+        except OSError:
             pass
         if not (launch or _open)(ctx, command):
+            pidfile.unlink(missing_ok=True)  # nothing opened: no claim
             print(f"cockpit: no terminal found; run in another one: {command}")
     except (Unavailable, OSError, subprocess.SubprocessError) as e:
         print(f"cockpit: not opened ({e}); run in another terminal: {command}")

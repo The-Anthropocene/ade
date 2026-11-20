@@ -2,7 +2,7 @@
 # what: the pilot's view: every open card with its state and next command, plus budgets; orca mode opens it in Orca too
 # cmd: ade cockpit [--mode cli|orca|auto] [--follow] [--every SECONDS]
 # reads: .ade/records.jsonl (journal, flight and outcome rows for the flight strips), source files
-# writes: .ade/cockpit.pid (the pid of a running --follow, removed when it ends)
+# writes: .ade/cockpit.pid (the pid of a running --follow, removed when it ends; a second --follow closes itself)
 import os
 import sys
 import time
@@ -52,6 +52,13 @@ def key(every):
 def follow(ctx, every):
     # one key only (d), which hands off to `ade decide --desk`; the cockpit itself never writes a record
     pidfile = ctx.root / ".ade" / "cockpit.pid"  # lets a starting loop see that a cockpit terminal is already open
+    try:
+        other = int(pidfile.read_text().split()[0])
+        if other != os.getpid() and orca._alive(other):
+            print(f"a cockpit is already open (pid {other}); this one closes")
+            return 0
+    except (OSError, ValueError, IndexError):
+        pass  # no file, a launch claim or a dead pid: taken over
     try:
         pidfile.parent.mkdir(exist_ok=True)
         pidfile.write_text(str(os.getpid()))

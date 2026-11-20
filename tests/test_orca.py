@@ -119,6 +119,7 @@ class OrcaTest(FixtureCase):
             orca.strip(ctx, codex, launch)  # another engine: one new terminal running the strip
             self.assertTrue(opened[0].endswith("cockpit --follow --mode cli"), opened)
             ctx.cfg["cockpit"]["band"] = "terminal"
+            (self.repo / ".ade" / "cockpit.pid").unlink(missing_ok=True)  # the first launch left a fresh claim
             orca.strip(ctx, claude, launch)  # band = "terminal" reaches Claude Code too
             self.assertEqual(len(opened), 2)
             (self.repo / ".ade").mkdir(exist_ok=True)
