@@ -14,6 +14,9 @@ type Row = Record<string, unknown>
 let flight: Flight | null = null
 let paneOpened = false
 let seen: number | null = null
+let rows: Row[] = []
+let offset = 0 // bytes of the records file already parsed, through its last complete line
+let last = { size: -1, mtimeMs: -1 }
 
 const text = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -87,13 +90,26 @@ const line = (f: Flight) =>
 export const register: Register = on => {
   on('session.start', ($, e, next) => {
     $.clock.every(1000, async () => {
-      let raw: string
       try {
-        raw = await $.fs.read('.ade/records.jsonl')
+        const { size, mtimeMs } = await $.fs.stat('.ade/records.jsonl')
+        if (size === last.size && mtimeMs === last.mtimeMs) return
+        if (size < offset) {
+          // the file shrank: read it whole once, as on a first poll
+          rows = []
+          offset = 0
+          seen = null
+        }
+        while (offset < size) {
+          const raw = await $.fs.read('.ade/records.jsonl', { offset, length: Math.min(size - offset, 1 << 22) })
+          const end = raw.lastIndexOf('\n') + 1 // a trailing partial line waits for the next poll
+          if (!end) break
+          offset += new TextEncoder().encode(raw.slice(0, end)).length
+          rows = rows.concat(parse(raw.slice(0, end)))
+        }
+        last = { size, mtimeMs }
       } catch {
-        return // a failed read changes nothing: seen, flight and band stay as they were
+        return // a failed stat or read changes nothing: seen, flight and band stay as they were
       }
-      const rows = parse(raw)
       for (const t of toasts(rows, seen)) $.ui.toast(t)
       seen = rows.length
       let now = scan(rows)
