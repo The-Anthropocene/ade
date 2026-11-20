@@ -20,6 +20,14 @@ No account, no dependencies, nothing phones home. Python 3.11+ and the standard 
 
 ADE runs each vendor's own unmodified CLI under your login. It never reads or stores that login, and it can run on an API key instead.
 
+## What makes it ADE
+
+- **Cards, not chats.** Each change is a card with its files and a done line. ade card add writes one; `ade cockpit` shows them all.
+- **One loop per card.** Lane, build, review, test, land, each card in its own worktree. A separate reviewer seat can send the work back.
+- **A graph of your code.** Each lane gets a briefing on just the files its card touches, so agents stop re-reading the whole repo.
+- **Usage per card.** `ade telemetry` shows what each card cost, per engine, every week.
+- **Small on purpose.** The core is capped at 20,000 lines and 8 hooks, and `ade budget` prints where it stands. Small cards keep each diff, review and fix small.
+
 ## Where this came from
 
 ADE was built in private first, by Connor Roberts at Practice Atlas Ltd, using ADE itself. Public history starts here, and from now on every landed card is one public commit.
