@@ -1,0 +1,13 @@
+{
+  "name": "atlas-ade",
+  "displayName": "Atlas ADE",
+  "version": "1.0.1",
+  "description": "Sets up Atlas ADE, the meta-harness for your agentic workflows, in your project. ADE runs Claude Code, Codex, OpenCode or Pi on your repo one small task (a card) at a time: its own git worktree, a separate reviewer, tests, then merge. Shows what each card cost, so your usage goes on building. Free, MIT, no account.",
+  "author": {
+    "name": "Practice Atlas Ltd",
+    "url": "https://atlas-ade.dev"
+  },
+  "homepage": "https://atlas-ade.dev",
+  "repository": "https://github.com/The-Anthropocene/ade",
+  "license": "MIT"
+}

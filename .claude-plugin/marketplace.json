@@ -1,0 +1,14 @@
+{
+  "name": "atlas-ade",
+  "description": "Atlas ADE's own plugin: one skill that sets ADE up in your project.",
+  "owner": {
+    "name": "Practice Atlas Ltd"
+  },
+  "plugins": [
+    {
+      "name": "atlas-ade",
+      "source": "./plugin",
+      "description": "Sets up Atlas ADE, the meta-harness for your agentic workflows, in your project. ADE runs Claude Code, Codex, OpenCode or Pi on your repo one small task (a card) at a time: its own git worktree, a separate reviewer, tests, then merge. Shows what each card cost, so your usage goes on building. Free, MIT, no account."
+    }
+  ]
+}
