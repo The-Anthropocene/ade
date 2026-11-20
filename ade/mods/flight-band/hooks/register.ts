@@ -113,7 +113,7 @@ export const register: Register = on => {
       $.ui.open({ id: PANE, title: 'ADE flight' })
     }
     const { Box, Text } = $.ui.resolve(e)
-    return h(Box, null, h(Text, null, line(flight)))
+    return h(Box, { borderStyle: 'round', paddingX: 1 }, h(Text, null, line(flight)))
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, ($, e, next) => {
