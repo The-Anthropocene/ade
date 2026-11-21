@@ -126,6 +126,26 @@ def _terminal(where, title, command):
         orca("terminal", "create", "--worktree", _sel(where), "--title", title, "--command", command)
 
 
+def _strings(v):
+    if isinstance(v, str):
+        yield v
+    elif isinstance(v, dict):
+        for x in v.values():
+            yield from _strings(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from _strings(x)
+
+
+def _listed(lane, bound=10.0):
+    """Orca lists a just-imported lane a few seconds late and refuses to set it before; wait, bounded, for its path."""
+    end = time.monotonic() + bound
+    while not any(_same(p, str(lane)) for p in _strings(orca("worktree", "list"))):
+        if time.monotonic() >= end:
+            raise Unavailable(f"Orca did not list the lane {lane} within {bound:.0f}s")
+        time.sleep(0.5)
+
+
 def _status(lane, comment):
     orca("worktree", "set", "--worktree", _sel(lane), "--workspace-status", "in-progress", "--comment", comment[:500])
 
@@ -142,6 +162,7 @@ def event(ctx, c, stage, res, lane):
         elif stage == "lane" and res.outcome == "advance":
             orca("repo", "add", "--path", str(ctx.root))
             _imports(ctx.root, lane, keep=True)
+            _listed(lane)
             _status(lane, f"{c['id']} {c['title']}: building")
             # --until-landed: the terminal outlives stops, so a rerun that finds it by title still has it following.
             _terminal(lane, f"ade {c['id']}", f"{install.ade_cmd()} watch {c['id']} --until-landed")

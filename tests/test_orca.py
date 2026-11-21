@@ -50,6 +50,8 @@ class OrcaTest(FixtureCase):
                 result = {"runtime": {"reachable": True}}
             if argv[1:3] == ["repo", "list"]:
                 result = {"repos": [{"id": "r1", "path": str(self.repo), "importedExternalWorktreePaths": list(self.imported)}]}
+            if argv[1:3] == ["worktree", "list"]:  # Orca lists an imported lane by its path
+                result = {"worktrees": [{"path": p} for p in self.imported]}
             return subprocess.CompletedProcess(argv, 0, stdout=json.dumps({"ok": True, "result": result}), stderr="")
         # shutil is one module everywhere, so only orca's own names may resolve to the stand-in: on Windows the
         # provider and test stages resolve their commands through shutil.which too.
