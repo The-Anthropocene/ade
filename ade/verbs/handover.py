@@ -104,7 +104,7 @@ def text(ctx, name):
     if g:
         hubs = sorted(g["callers"].items(), key=lambda kv: -len(kv[1]))[:8]
         out += ["", f"## Graph ({len(g['files'])} files; each edit is briefed from it)"]
-        out += [f"- {n}: {(g['files'][n]['header'] or {}).get('what', '')} ({len(v)} callers)" for n, v in hubs]
+        out += [f"- {n}: {((g['files'].get(n) or {}).get('header') or {}).get('what', '')} ({len(v)} callers)" for n, v in hubs]
     out += ["", "## Configuring ADE", "Settings live in ade.toml; unset ones take the kit default; find any with `ade config WORD`. "
             "ade.toml is protected: you may run `ade parts set` (and `ade setup`); name any other key to the person, who changes it and reruns `ade init`."]
     if not budget.off(ctx):

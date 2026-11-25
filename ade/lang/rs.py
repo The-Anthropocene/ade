@@ -3,6 +3,7 @@
 # cmd: -
 # reads: -
 # writes: -
+import os
 import re
 
 EXTS = (".rs",)
@@ -32,6 +33,16 @@ def _module(name, crate):
 
 def prepare(root, names):
     crates = sorted(n[: -len("Cargo.toml")].rstrip("/") for n in names if n.split("/")[-1] == "Cargo.toml")
+    for n in names:  # graph.build passes only .rs names: find each one's nearest Cargo.toml on disk
+        d = n.rpartition("/")[0]
+        while n.endswith(".rs") and d not in crates:
+            if os.path.isfile(os.path.join(root, d, "Cargo.toml")):
+                crates.append(d)
+                break
+            if not d:
+                break
+            d = d.rpartition("/")[0]
+    crates.sort()
     mods = {}
     for n in sorted(names, reverse=True):  # lib.rs sorts before main.rs, so it is written last and wins
         if n.endswith(".rs"):

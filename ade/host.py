@@ -5,6 +5,7 @@
 # writes: -
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -118,6 +119,20 @@ def job_end(job):
     k32.CloseHandle.argtypes = [wintypes.HANDLE]
     k32.TerminateJobObject(job, 1)
     k32.CloseHandle(job)
+
+
+def end_tree(proc, job, force):
+    """End the engine's process tree: the job on Windows (taskkill when there is none and force is set), else its group."""
+    if os.name == "nt":
+        if job:
+            job_end(job)
+        elif force:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGKILL if force else signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def substitute(argv, **values):

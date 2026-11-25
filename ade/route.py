@@ -50,7 +50,7 @@ def returns():
 
 def parses(argv):
     """None when `ade <argv>` parses with the verbs' own parsers, else argparse's complaint."""
-    p, _ = cli.parser()
+    p, _ = cli.route_parser()
     err = io.StringIO()
     try:
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):

@@ -99,7 +99,7 @@ def ade_calls(text):
     out = []
     for n, line in enumerate(text.splitlines(), 1):
         line = line.strip()
-        if line.startswith(("#", "//", "REM ")):
+        if "ade" not in line or line.startswith(("#", "//", "REM ")):
             continue
         for seg in _SEG.split(line):
             seg = re.sub(r"^\s*(?:-\s+)?(?:run:\s*|\$\s+)?", "", seg).strip().strip("'\"")

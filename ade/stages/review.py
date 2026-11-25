@@ -67,6 +67,8 @@ def apply_envelope(lp, patch):
         if m:
             cur = (m[1], m[2], [[]])
             sections.append(cur)
+        elif cur and x.startswith("*** Move to:"):
+            raise ValueError(f"{cur[1]} is renamed to {x[12:].strip()}, which is not applied")
         elif cur and x.startswith("@@"):
             cur[2].append([])
         elif cur and x[:1] in (" ", "+", "-", ""):

@@ -25,6 +25,13 @@ def _path(ctx):
     return ctx.state / "records.jsonl"
 
 
+_parsed = {}  # path -> ((size, mtime_ns), rows): one parse of the live file until it changes or this process writes it
+
+
+def _drop(p):
+    _parsed.pop(p, None)
+
+
 def _adopt(ctx):
     # A fresh clone has origin's branch but no local one. Take origin's tip first, so this machine continues the same
     # history (a push stays a fast-forward) and a restore sees its rows, instead of starting an unrelated branch.
@@ -73,6 +80,7 @@ def _line(r):
 def _backup(ctx, f, row=None):
     """Append durable rows to records.jsonl on the ade-records orphan branch with plumbing only: no checkout,
     so the working tree, the index and the current branch never move. It is pushed like any branch."""
+    _empty.discard(ctx.root)  # the branch is about to have rows, so a later missing file must ask git again
     got = _tip_and_text(ctx)
     if got is None or not got[0]:
         # No local branch (a fresh clone takes origin's tip first) or output that did not parse: the two-call read.
@@ -130,7 +138,9 @@ def reconcile(ctx, theirs, base=None):
     """Fold another machine's ade-records tip into ours: rows from both, theirs first, as a commit with both tips as
     parents. Neither history is rewritten, so the push that follows is a fast-forward. An id both machines minted
     stays theirs and ours is renumbered, in the branch and in the local file; returns {old card id: new}."""
-    with host.lock(_path(ctx).with_suffix(".lock")):
+    p = _path(ctx)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with host.lock(p.with_suffix(".lock")):
         ours = _adopt(ctx)
         if ours and git(ctx.root, "merge-base", "--is-ancestor", theirs, ours, check=False).returncode == 0:
             return {}  # we already hold everything they have
@@ -170,7 +180,9 @@ def _pull_local(ctx, text, moved, notes=()):
         rows = [_rename(r, moved) for r in _rows(f)]
     have = {_line(r) for r in rows}
     rows += [r for r in map(json.loads, filter(str.strip, text.splitlines())) if _line(r) not in have]
+    _drop(p)
     host.write(p, "".join(map(_line, rows + list(notes))))
+    _drop(p)
 
 
 def seed(ctx):
@@ -204,7 +216,9 @@ def prune(ctx, days=30):
             gone = [x if x.endswith("\n") else x + "\n" for x in lines if old(x)]
             with open(_archive(ctx), "a", encoding="utf-8") as a:  # first, so a failure loses nothing
                 a.write("".join(gone))
+            _drop(p)
             host.write(p, "".join(keep))
+            _drop(p)
         return len(lines) - len(keep)
 
 
@@ -223,11 +237,12 @@ def fetch(ctx):
 
 
 _fetched = set()
+_empty = set()  # roots whose branch had nothing to restore, so a missing file asks git once per process
 
 
 def _restore(ctx, p):
     # The local file is gone (a dropped drive, a fresh clone): durable rows come back from the branch.
-    if not p.exists() and (ctx.root / ".git").exists():
+    if not p.exists() and ctx.root not in _empty and (ctx.root / ".git").exists():
         if ctx.root not in _fetched:
             _fetched.add(ctx.root)
             fetch(ctx)
@@ -235,7 +250,11 @@ def _restore(ctx, p):
         text = _branch_text(ctx)
         if text:
             p.parent.mkdir(parents=True, exist_ok=True)
+            _drop(p)
             host.write(p, text)
+            _drop(p)
+        else:
+            _empty.add(ctx.root)
 
 
 def _rows(f):
@@ -262,8 +281,12 @@ def append(ctx, rtype, fields, prefix=None, guard=None):
         _restore(ctx, p)
         if guard:
             guard()  # a refusal here leaves the records untouched
-        with host.opentext(p, "a+") as f:
-            return _append(ctx, f, rtype, fields, prefix)
+        _drop(p)
+        try:
+            with host.opentext(p, "a+") as f:
+                return _append(ctx, f, rtype, fields, prefix)
+        finally:
+            _drop(p)
 
 
 def _append(ctx, f, rtype, fields, prefix):
@@ -303,6 +326,7 @@ def fired(ctx, r, card=None):
         try:
             p = _path(ctx)
             p.parent.mkdir(parents=True, exist_ok=True)
+            _drop(p)
             with host.lock(p.with_suffix(".lock")), host.opentext(p, "a+") as f:
                 f.write(_line({"type": "refusal", "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **fields}))
         except Exception:
@@ -318,8 +342,12 @@ def read(ctx, rtype=None, archive=False):
         with host.opentext(_archive(ctx)) as f:
             rows = _rows(f)
     if p.is_file():
-        with host.opentext(p) as f:
-            rows += _rows(f)
+        st = p.stat()
+        key = (st.st_size, st.st_mtime_ns)
+        if p not in _parsed or _parsed[p][0] != key:
+            with host.opentext(p) as f:
+                _parsed[p] = (key, _rows(f))
+        rows += _parsed[p][1]
     return [r for r in rows if rtype is None or r["type"] == rtype]
 
 

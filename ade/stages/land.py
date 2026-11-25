@@ -297,7 +297,11 @@ def backstop(ctx, c, t, before, rev="HEAD"):
         return None
     with merged_tree(ctx, rev) as wt:
         g = graph.build(wt, ctx.cfg)
-        chosen = graph.select_tests(g, git(ctx.root, "diff", "--name-only", before, rev).splitlines(), ctx.cfg)
+        moved = git(ctx.root, "diff", "--name-only", before, rev).splitlines()
+        chosen = graph.select_tests(g, moved, ctx.cfg) if "graph" not in parts.off(ctx.cfg) else None  # as the test stage: graph off runs it all
+        units = test.unit_map(ctx, wt, moved)[0]
+        if units and chosen is not None:
+            chosen = sorted(set(chosen) | set(units))
         if chosen == []:
             return None
         lane_row = next((r for r in reversed(records.read(ctx, "test")) if r["card"] == c["id"] and r["tree"] == t), {})
@@ -324,7 +328,7 @@ def lane_merge(ctx, c, lp, check=None):
         from ade.stages import build  # build imports land, so only here
         try:
             build.regenerate(ctx, lp)
-            git(lp, "add", "--", out)
+            git(lp, "add", "--", out, *[x for x in (install.SKILL, install.SKILL_CODEX) if (lp / x).is_file()])
             files.remove(out)
         except subprocess.CalledProcessError:
             pass
@@ -344,11 +348,12 @@ def regenerated(ctx, c):
     out = ctx.cfg["graph"]["out"]
     if git(ctx.root, "diff", "--name-only", "--diff-filter=U").splitlines() != [out]:
         return False
+    mine = dirty(ctx)  # read before regenerate: a person's own skill edit is never staged into the merge commit
     try:
         build.regenerate(ctx, ctx.root)
     except subprocess.CalledProcessError:  # the render failed: leave the merge for the caller to abort
         return False
-    git(ctx.root, "add", "--", out)
+    git(ctx.root, "add", "--", out, *[x for x in (install.SKILL, install.SKILL_CODEX) if x not in mine and (ctx.root / x).is_file()])
     return not git(ctx.root, "commit", "-q", "--no-edit", check=False).returncode
 
 
@@ -538,9 +543,10 @@ def prove(ctx, c, lp, main_sha, sha, at=None):
     """Run the card's proofs on the merge at sha: (rows, None), or (rows, the stop) on the first non-zero rc.
     Main goes back to main_sha only while the merge is not on the remote; once pushed it is left and the stop says so."""
     rows = []
-    for cmd in c.get("proofs", []):  # the child's own rc and output, run on the merged main; never typed in
+    for cmd in c.get("proofs", []):  # the child's own rc and output, run on the merge in its own checkout; never typed in
         try:
-            code, out = test._run(ctx, test.split(cmd), ctx.root)
+            with merged_tree(ctx, sha) as wt:  # not ctx.root: an uncommitted edit there must not change the rc recorded for sha
+                code, out = test._run(ctx, test.split(cmd), wt)
         except (OSError, ValueError) as e:  # a proof that cannot start is a failed proof, not a crash with main merged
             code, out = 127, str(e)
         rows.append({"cmd": cmd, "rc": code, "out_sha256": hashlib.sha256(out.encode()).hexdigest()})

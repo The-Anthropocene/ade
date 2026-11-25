@@ -10,7 +10,7 @@ import sys
 import time
 
 from ade import install
-from ade.orca import Unavailable
+from ade.display import Unavailable
 
 # herdr is a display: only its CLI is called (never its socket), it is never installed or required, and every failure is
 # an Unavailable that the caller prints as one note. The calls follow the herdr CLI's documented verbs.

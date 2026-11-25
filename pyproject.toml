@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-ade"
-version = "1.0.1"
+version = "1.1.0"
 description = "Atlas ADE, the meta-harness for your agentic workflows: one loop, a generated graph; works with Claude Code, Codex, OpenCode or Pi, alone or side by side."
 readme = "README.md"
 license = "MIT"

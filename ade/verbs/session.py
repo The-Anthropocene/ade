@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 
-from ade import config, install, orca, records, route, wait
+from ade import config, install, display, records, route, wait
 from ade.config import KIT
 from ade.refuse import refuse
 
@@ -66,10 +66,10 @@ def _start(ctx, name, argv):
     records.append(ctx, "session", {"name": name, "pid": proc.pid, "started": wait.started(proc.pid), "argv": argv,
                                     "log": log.relative_to(ctx.root).as_posix()})
     print(f"session {name}: pid {proc.pid}, `ade {' '.join(argv)}`\n  follow: ade session attach {name}")
-    if shown := orca.on(ctx):
+    if shown := display.on(ctx):
         try:
-            orca.terminal(ctx, f"ade session {name}", f"{install.ade_cmd()} session attach {name} --follow")
-        except orca.Unavailable as e:
+            display.terminal(ctx, f"ade session {name}", f"{install.ade_cmd()} session attach {name} --follow")
+        except display.Unavailable as e:
             print(f"{shown}: not shown ({e}); `ade session attach {name}` follows it here")
 
 

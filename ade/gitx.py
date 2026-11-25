@@ -19,6 +19,9 @@ def git(cwd, *args, check=True, input=None, env=None, timeout=None):
     r.stdout, r.stderr = (b.decode("utf-8", "replace") for b in (r.stdout, r.stderr))
     if check and r.returncode != 0:
         last = (r.stderr.strip() or r.stdout.strip()).splitlines()[-1:] or ["no output"]
-        refuse("git.failed", f"git {args[0]} failed in {cwd}: {last[0]}",
-               "fix the repository state git names, then rerun the same ade command")
+        cure = "fix the repository state git names, then rerun the same ade command"
+        if os.environ.get("CODEX_SANDBOX"):  # same wording as lane.sandboxed
+            cure = ("this session runs in Codex's sandbox, which makes .git read-only; rerun from a plain terminal, "
+                    "or start Codex with --sandbox danger-full-access")
+        refuse("git.failed", f"git {args[0]} failed in {cwd}: {last[0]}", cure)
     return r.stdout.strip() if check else r

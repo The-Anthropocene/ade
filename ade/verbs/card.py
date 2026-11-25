@@ -57,8 +57,17 @@ def add(p):
     z.add_argument("--until", required=True, help="YYYY-MM-DD, or Nd")
 
 
-def draft(ctx, sentence):
+def _sync(ctx):
+    # fetch only moves the remote-tracking ref; fold its tip into the local ade-records so the next id is not one the remote holds
     records.fetch(ctx)
+    name = ctx.cfg.get("git", {}).get("remote", "origin")
+    tip = git(ctx.root, "rev-parse", "-q", "--verify", f"refs/remotes/{name}/{records.BRANCH}", check=False).stdout.strip()
+    if tip:
+        records.reconcile(ctx, tip)
+
+
+def draft(ctx, sentence):
+    _sync(ctx)
     g = graph.load(ctx.root, ctx.cfg) or {"files": {}}
     files = "\n".join(f"{n}: {(f['header'] or {}).get('what', '')}" for n, f in sorted(g["files"].items()))
     t = ctx.cfg["tests"]
@@ -145,7 +154,7 @@ def run(args, cwd):
         if args.profile and args.profile not in names:
             refuse("card.profile", f"no role defines a profile {args.profile!r}",
                    f"use one of: {', '.join(names)}" if names else "define [roles.<role>.profiles.<name>] in ade.toml first")
-        records.fetch(ctx)
+        _sync(ctx)
         _warn_paths(ctx, args.path)
         every = {"every": args.every} if args.every else {}
         every |= {"proofs": args.proof} if args.proof else {}

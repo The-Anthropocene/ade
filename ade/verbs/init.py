@@ -51,8 +51,12 @@ def _write(root, plan, dry_run, seen=()):
             p.unlink()
             print(f"removed {rel}")
         else:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            host.write(p, new)
+            try:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                host.write(p, new)
+            except OSError as e:  # e.g. Codex's workspace-write sandbox protects .codex
+                refuse("init.refused", f"{rel} is blocked ({e.strerror or e}), so init stopped after the files already written",
+                       "rerun ade init in a normal shell to finish the rest")
             if rel not in seen:
                 print(f"wrote {rel}")
     return changed
@@ -61,8 +65,9 @@ def _write(root, plan, dry_run, seen=()):
 def _install(root, ctx, dry_run, seen=()):
     # The graph is built from disk, so on a first install it misses the files this same plan writes (the opencode
     # and Pi adapters): a second pass, once they exist, brings it level and leaves every other file as written.
-    changed = _write(root, install.plan(ctx), dry_run, seen)
-    return changed + ([] if dry_run else [r for r in _write(root, install.plan(ctx), False, (*seen, *changed)) if r not in changed])
+    plan = install.plan(ctx)
+    changed = _write(root, plan, dry_run, seen)
+    return changed + ([] if dry_run else [r for r in _write(root, install.plan(ctx), False, (*seen, *changed)) if r not in changed]), [r for r, new in plan if new is not None]
 
 
 def _identity(folder):
@@ -225,7 +230,8 @@ def run(args, cwd):
             print(f"  {kind:<5} {rule}")
         print("add them to [permissions.allow] or [permissions.deny] to keep them")
     _old_defaults(ctx)
-    changed = _install(root, ctx, args.dry_run)
+    changed, owned = _install(root, ctx, args.dry_run)
+    left = []
     if not args.dry_run:
         records.seed(ctx)
         if dropped := records.prune(ctx):
@@ -240,9 +246,15 @@ def run(args, cwd):
             _news(ctx, old)
         host.write(ctx.state / "kit.json", json.dumps({"kit": install.kit()}) + "\n")
         _say_push(ctx)
+        if not args.no_commit:
+            # An init that stopped part-way left its files untracked (a fresh project has no tracked ones): commit those
+            # too. Tracked files stay the person's; git status -z lists untracked as "?? path" with no quoting.
+            owned = ["ade.toml", *owned, ".ade/kit.json", ".ade/template.toml", ".ade/news.md"]
+            out = git(root, "status", "--porcelain", "-z", "--untracked-files=all", "--", *owned).split("\0")
+            left = [e[3:] for e in out if e.startswith("?? ") and e[3:] not in changed + made]
     if (changed or made) and not args.dry_run:
         print(f"ADE's hooks and settings load only for an agent session started in {root}; an agent started elsewhere should be restarted from this folder.")
-    if not changed and not made:
+    if not changed and not made and not left:
         print("ade init: up to date")
     elif args.dry_run:
         print(f"ade init --dry-run: {len(changed)} file(s) would change; nothing written")
@@ -251,8 +263,8 @@ def run(args, cwd):
     else:
         # Exactly the files written, by path, so the person's other changes stay unstaged and out of the commit.
         # Ignored ones (settings.local.json) are written but never committed; git add refuses them by name.
-        ignored = set(git(root, "check-ignore", "--", *made, *changed, check=False).stdout.splitlines())
-        paths = [p for p in made + changed if p not in ignored]
+        ignored = set(git(root, "check-ignore", "--", *made, *changed, *left, check=False).stdout.splitlines())
+        paths = [p for p in made + changed + left if p not in ignored]
         if paths:
             git(root, "add", "--", *paths)
             # Files rewritten identical to HEAD (uninstall then init) leave nothing to commit.

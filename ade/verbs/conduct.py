@@ -1,5 +1,5 @@
 # id: ade.verbs.conduct
-# what: walk the board through `ade loop` until no open card is left untried, one card at a time or several whose reach the graph keeps apart; route every stop by ade/route.toml, wake a model only where the route says wake. Pilots: run it as a background task, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because each lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
+# what: walk the board through `ade loop` until no open card is left untried, one card at a time or several whose reach the graph keeps apart; route every stop by ade/route.toml, wake a model only where the route says wake. Pilots: run it as a background task the harness tracks and reports the finish of (Claude Code's background Bash, or the equivalent in Codex, OpenCode and Pi), never a detached `&`, nohup or setsid shell, whose finish wakes nobody, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because each lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
 # cmd: ade conduct [CARD ...] [--lanes N] [--follow [--rounds N]] [--check] [--model ROLE=ENGINE:MODEL] [--effort ROLE=LEVEL] [--json]
 # reads: ade/route.toml, .ade/records.jsonl, usage meters
 # writes: .ade/seen and .ade/sessions files older than 30 days (removed), .ade/records.jsonl (hold rows for parked cards, a journal row per stop it retried; the loop writes the rest), lanes and main through ade loop
@@ -10,7 +10,7 @@ import shlex
 import time
 from datetime import timedelta
 
-from ade import cli, config, graph, orca, parts, providers, records, route, stages, telemetry, wait
+from ade import cli, config, graph, display, parts, providers, records, route, stages, telemetry, wait
 from ade.gitx import git
 from ade.refuse import Refusal, refuse
 from ade.verbs import decide, loop, session, telemetry as flights
@@ -76,7 +76,7 @@ def _park(ctx, c, stop, why, deadline=None):
     return "parked"
 
 
-def _holding(ctx, c):
+def holding(ctx, c):
     """The question waiting() holds the card on, or None: the newest land question until answered land or rework, else the card's newest question while open."""
     qs = [d for d in records.merged(ctx, "decision").values() if d.get("card") == c["id"]]
     lq = [d for d in qs if d.get("rec") == "land"][-1:]  # the newest land question: only 'land' or 'rework: TEXT' passes it
@@ -88,7 +88,7 @@ def _holding(ctx, c):
 
 def waiting(ctx, c):
     """True while the card's latest parked question is open; any answer or the default applying releases it (a land question wants 'land' or 'rework')."""
-    return _holding(ctx, c) is not None
+    return holding(ctx, c) is not None
 
 
 def _wake(ctx, c, stop, role):
@@ -208,7 +208,7 @@ def lanes(ctx, ids, n, tried=None):
                     named[new] = t
         ids = list(named) if named else ids
         board = [every[i] for i in ids if i in every] if ids else list(every.values())
-        board = [c for c in board if c["status"] != "closed" and (ids or not waiting(ctx, c))]  # one named by hand flies regardless
+        board = [c for c in board if c["status"] not in ("landed", "closed") and (ids or not waiting(ctx, c))]  # one named by hand flies regardless
         _reap()
         up = flying(ctx)
         again = lambda c: c["id"] in tried and not waiting(ctx, c) and _answers(ctx, c["id"]) - _ANSWERED.get(c["id"], set())
@@ -304,7 +304,7 @@ def conduct(ctx, c, rt):
             if why:
                 return _park(ctx, c, stop, why, eve)
             if waiting(ctx, c):  # the woken pilot asked a person: that question holds the card, a second would double the ask
-                q = _holding(ctx, c)["id"]
+                q = holding(ctx, c)["id"]
                 records.append(ctx, "hold", {"session": "conduct", "card": c["id"], "waits_on": q, "kind": "person"})
                 print(f"held {c['id']}: waits on {q} (asked by the woken pilot)")
                 return "parked"
@@ -330,9 +330,6 @@ def _sweep(ctx, days=30):
 
 
 def _fly(ctx, args, cwd):
-    if "conductor" in parts.off(ctx.cfg):
-        refuse("conduct.off", "the conductor part is off in ade.toml [parts]",
-               "fly cards one at a time with `ade loop CARD`, or switch it on with `ade parts set conductor=on`")
     bad = route.check(ctx, config.toplevel(cwd) or ctx.root)
     if bad or args.check:
         for where, what in bad:
@@ -342,11 +339,14 @@ def _fly(ctx, args, cwd):
                    "change each line above to what the verb now takes (or route the new stop), then `ade graph`")
         print("route and scripts bound: every line parses, every stop is routed")
         return 0
+    if "conductor" in parts.off(ctx.cfg):
+        refuse("conduct.off", "the conductor part is off in ade.toml [parts]",
+               "fly cards one at a time with `ade loop CARD`, or switch it on with `ade parts set conductor=on`")
     if args.follow and args.cards:
         refuse("conduct.follow", "--follow watches the board, so it cannot take named cards",
                "drop the card names, or drop --follow")
     loop.billing(ctx)
-    orca.strip(ctx)
+    display.strip(ctx)
     _sweep(ctx)
     if not args.follow:
         return _round(ctx, args, set(), {})

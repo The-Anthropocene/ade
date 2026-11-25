@@ -13,7 +13,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from ade import graph, host, parts, push, q, records
+from ade import graph, host, install, parts, push, q, records
 from ade.gitx import git
 from ade.refuse import refuse
 from ade.stages import build, lane
@@ -223,7 +223,7 @@ def run(ctx, c):
         except (OSError, subprocess.SubprocessError) as e:
             return Result("needs-judgement", f"{ctx.cfg['graph']['out']} is stale in the lane and regenerating it failed: {str(e)[:80]}",
                           f"cd {lp} && ade graph, fix what it names, commit; then `ade loop {c['id']}`")
-        git(lp, "add", "--", ctx.cfg["graph"]["out"])
+        git(lp, "add", "--", ctx.cfg["graph"]["out"], *[x for x in (install.SKILL, install.SKILL_CODEX) if (lp / x).is_file()])
         if git(lp, "diff", "--cached", "--quiet", check=False).returncode:
             git(lp, "commit", "-q", "-m", f"{c['id']}: regenerate graph")
         t, g = tree(lp), graph.build(lp, ctx.cfg)
@@ -253,7 +253,7 @@ def run(ctx, c):
             retried.append(shlex.join(argv))  # one isolated retry for a timing-shaped failure, never more
             code, out = _run(ctx, argv, lp)
         if code == 5 and EMPTY.search(out):  # the runner found no tests: nothing to run, not a red
-            nothing.append(shlex.join(template))
+            nothing.append(shlex.join("python" if a == host.PYTHON else a for a in template))  # the command as configured, not the interpreter's path
             code = 0
         # Each command's own time and result, so a typecheck's share of the stage (and which command failed) shows.
         walls[shlex.join(template)] = round(time.monotonic() - began, 2)

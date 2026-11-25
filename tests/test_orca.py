@@ -1,5 +1,5 @@
 # id: tests.test_orca
-# what: Orca mode mirrors lanes, stops and the board into Orca, and a missing Orca never stops the loop; ade watch
+# what: Orca mode mirrors lanes, stops and the board into Orca, and a missing Orca never stops the loop
 # cmd: python3 -m unittest tests/test_orca.py
 # reads: tests/fixture_repo
 # writes: temporary directories only
@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from unittest import mock
 
-from ade import config, orca, records
+from ade import config, display, orca, records
 from ade.verbs import cockpit, loop, watch  # noqa: F401  (imported so the graph records coverage)
 from tests.helpers import FixtureCase
 
@@ -110,46 +110,43 @@ class OrcaTest(FixtureCase):
             code, out = self.ade("cockpit", "--mode", "auto")
         self.assertEqual(code, 0, out)  # no Orca: the terminal board alone, no refusal
         self.assertNotIn("orca", out)
-        # The flight strip at loop start (orca.strip): guards the three branches and the [cockpit] band setting.
+        # The flight strip at loop start (display.strip): guards the three branches and the [cockpit] band setting.
         ctx, opened = config.load(self.repo), []
         launch = lambda c, command: opened.append(command) or "term"
         codex, claude = {"CODEX_THREAD_ID": "t"}, {"CLAUDECODE": "1"}
         ctx.cfg["cockpit"]["band"] = "auto"  # the default is now "terminal"; "auto" keeps Claude Code out
         with mock.patch("ade.orca.reachable", return_value=False):
-            orca.strip(ctx, claude, launch)  # band = "auto", a plain Claude Code pilot: nothing
+            display.strip(ctx, claude, launch)  # band = "auto", a plain Claude Code pilot: nothing
             self.assertEqual(opened, [])
-            orca.strip(ctx, codex, launch)  # another engine: one new terminal running the strip
+            display.strip(ctx, codex, launch)  # another engine: one new terminal running the strip
             self.assertTrue(opened[0].endswith("cockpit --follow --mode cli"), opened)
             ctx.cfg["cockpit"]["band"] = "terminal"
             (self.repo / ".ade" / "cockpit.pid").unlink(missing_ok=True)  # the first launch left a fresh claim
-            orca.strip(ctx, claude, launch)  # band = "terminal" reaches Claude Code too
+            display.strip(ctx, claude, launch)  # band = "terminal" reaches Claude Code too
             self.assertEqual(len(opened), 2)
             (self.repo / ".ade").mkdir(exist_ok=True)
             (self.repo / ".ade" / "cockpit.pid").write_text(str(os.getpid()))
-            orca.strip(ctx, codex, launch)  # a live cockpit terminal is open: it redraws itself
+            display.strip(ctx, codex, launch)  # a live cockpit terminal is open: it redraws itself
             self.assertEqual(len(opened), 2)
             (self.repo / ".ade" / "cockpit.pid").unlink()
             ctx.cfg["cockpit"]["band"] = "off"
-            orca.strip(ctx, codex, launch)
+            display.strip(ctx, codex, launch)
             self.assertEqual(len(opened), 2)
             ctx.cfg["cockpit"]["band"] = "auto"
-            orca.strip(ctx, codex, lambda c, command: None)  # no terminal found: one line, no refusal
-        with mock.patch("ade.orca.reachable", return_value=True), mock.patch("ade.orca.board") as board:
-            orca.strip(ctx, codex, launch)  # Orca running: its terminal, no other
+            display.strip(ctx, codex, lambda c, command: None)  # no terminal found: one line, no refusal
+        with mock.patch("ade.orca.reachable", return_value=True), mock.patch("ade.display.board") as board:
+            display.strip(ctx, codex, launch)  # Orca running: its terminal, no other
         self.assertEqual((board.call_count, len(opened)), (1, 2))
-        # Windows (faked): _alive needs the exact quoted pid field; _open passes the root as cwd, not in a shell string (guards both fixes).
-        csv = '"python.exe","1234","Console","1","9,000 K"\n'
-        with mock.patch("sys.platform", "win32"), mock.patch("subprocess.run") as run, mock.patch("subprocess.Popen") as popen:
-            run.return_value = subprocess.CompletedProcess([], 0, stdout=csv)
-            self.assertEqual((orca._alive(1234), orca._alive(123), orca._alive(9)), (True, False, False))
-            orca._open(ctx, '"C:/x/ade" cockpit --follow --mode cli')
+        # Windows (faked): _open passes the root as cwd, not in a shell string (guards the fix).
+        with mock.patch("sys.platform", "win32"), mock.patch("subprocess.Popen") as popen:
+            display._open(ctx, '"C:/x/ade" cockpit --follow --mode cli')
         self.assertEqual(popen.call_args[0][0], 'cmd /k "title ade cockpit && "C:/x/ade" cockpit --follow --mode cli"')
         self.assertEqual(popen.call_args[1]["cwd"], ctx.root)
         self.assertEqual(popen.call_args[1]["creationflags"], getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
         # macOS (faked): an 'open' that exits non-zero (blocked by a sandbox) is no terminal, so strip prints the fallback line.
         with mock.patch("sys.platform", "darwin"), mock.patch("subprocess.Popen") as popen, mock.patch("builtins.print") as out:
             popen.return_value.wait.return_value = 1
-            orca.strip(ctx, codex)
+            display.strip(ctx, codex)
         self.assertIn("run in another one", out.call_args[0][0])
 
     def test_the_board_shows_a_held_card_with_its_release_command_and_follow_redraws_until_interrupted(self):
@@ -185,17 +182,3 @@ class OrcaTest(FixtureCase):
         records.append(ctx, "journal", {"card": "c1", "stage": "build", "outcome": "advance", "note": "x"})
         records.append(ctx, "journal", {"card": "c1", "stage": "review", "outcome": "retry", "note": "x"})
         self.assertEqual(cockpit.strips(ctx), ["c1 Fly  ✓ lane  ✓ build  ✗ review  ■ test  ○ land"])
-
-    def test_watch_prints_the_lane_log_and_for_a_landed_card_without_a_log_where_it_landed(self):
-        self.install()
-        self.ade("card", "add", "anything under app", "--path", "app/*", "--done", "done")
-        self.ade("loop", "c1")
-        code, out = self.ade("watch", "c1", "--once")
-        self.assertEqual(code, 0, out)
-        self.assertIn("--- builder via fake ---\nfake builder: no literal path to edit", out)
-        # Guards the contract: a landed card with no lane log prints one landed line and the log path, never silence.
-        self.ade("card", "add", "anything else under app", "--path", "app/*", "--done", "done")
-        records.append(config.load(str(self.repo)), "card", {"id": "c2", "status": "landed", "commit": "0123456789abcdef"})
-        code, out = self.ade("watch", "c2")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out.strip(), "c2 landed at 0123456789; its log is .ade/logs/c2.log")

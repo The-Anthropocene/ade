@@ -53,6 +53,7 @@ share = []
 [rigour]
 # Paths whose output can cause harm: a change touching one runs the whole suite, in the lane and again on the merged
 # main at land. Everything else is orchestration-grade and runs the tests the graph says reach it.
+# For a stronger builder or reviewer on these paths, add a profile with the same globs ([profiles] select, further down).
 proof_grade = []
 # Prose paths that land without review.
 no_review = ["*.md", "docs/*"]
@@ -83,6 +84,7 @@ untested_ok = []
 [guards]
 # The bash guard (hook 2) refuses only these classes, in every permission mode. Secret files are never
 # printed by a reader; pass them by path. Writers are refused on [protected] paths.
+# Prefer name globs such as *.pem: a glob with a folder in it (secrets/*) is read differently by the hook guard, the macOS profile and the Linux bwrap list.
 secrets = [".env", ".env.*", "*.pem", "*.key", "id_rsa*", "id_ed25519*", "*.p12"]
 # A secret_ok glob, like secrets, matches the basename, the repo- or home-relative path, the absolute path and any trailing run of its components, so a short glob (e.g. '.env.example') allows that name in every folder; write a longer path to narrow it.
 secret_ok = [".env.example", ".env.sample", ".env.template"]

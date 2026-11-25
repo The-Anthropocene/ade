@@ -5,6 +5,7 @@
 # writes: -
 import argparse
 import difflib
+import functools
 import importlib
 import os
 import pkgutil
@@ -47,6 +48,10 @@ def parser():
         if hasattr(mod, "add"):
             mod.add(sp)
     return p, found
+
+
+# The route check parses ~40 rows and script lines; one build serves them all. main() builds fresh, since a verb's choices may read state a test patches.
+route_parser = functools.cache(parser)
 
 
 def main(argv=None, cwd=None):

@@ -256,15 +256,15 @@ class TelemetryTest(FixtureCase):
         self.assertEqual(telemetry.meters(ctx, ["codex"]), [("codex", "12%", 0.1, True)])
         gone = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(timespec="seconds")
         telemetry.record(ctx, "c1", "build", "builder", "codex", "gpt-6-sol", 1.0, {"week_used": 0.9, "week_resets": gone})
-        self.assertEqual(telemetry.meter(ctx, "codex"), None)  # that window has reset: unknown, not 90%
+        self.assertEqual(telemetry.reading(ctx, "codex")[:2], ("reset", None))  # that window has reset: unknown, not 90%
         # A reset with no zone is read as UTC; one nobody can read makes the meter unknown, never a crash.
         later = (datetime.now(timezone.utc) + timedelta(days=1)).replace(tzinfo=None).isoformat(timespec="seconds")
         self.assertEqual(telemetry.parse(json.dumps({"rate_limits": {"weekly": {
             "used_percent": 30, "window_minutes": 10080, "resets_at": later}}}))[1]["week_used"], 0.3)
         telemetry.record(ctx, "c1", "build", "builder", "codex", "gpt-6-sol", 1.0, {"week_used": 0.3, "week_resets": later})
-        self.assertEqual(telemetry.meter(ctx, "codex"), 0.3)
+        self.assertEqual(telemetry.reading(ctx, "codex")[:2], ("ok", 0.3))
         telemetry.record(ctx, "c1", "build", "builder", "codex", "gpt-6-sol", 1.0, {"week_used": 0.3, "week_resets": "soon"})
-        self.assertEqual(telemetry.meter(ctx, "codex"), None)
+        self.assertEqual(telemetry.reading(ctx, "codex")[:2], ("reset", None))
         # Guards the rule: the one meter fact that leaves the machine, the share flag, is a yes/no
         # with its reset, and moves only on change (the last row above said over).
         seen = len(records.read(ctx, "share"))

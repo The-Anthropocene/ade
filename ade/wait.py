@@ -7,7 +7,7 @@ import os
 import re
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ade import records
@@ -101,7 +101,8 @@ def _answered(ctx, did, _since):
     d = records.merged(ctx, "decision").get(did)
     if d is None:
         refuse("wait.args", f"no decision {did}", "list them with `ade decide --list`")
-    return "answer" in d or ("deadline" in d and records.today() > date.fromisoformat(d["deadline"]))
+    from ade.verbs import decide  # the one rule for whether a question is still open
+    return decide.state(d) in ("answered", "defaulted")
 
 
 def _exit(_ctx, pid, _since):

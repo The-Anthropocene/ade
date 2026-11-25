@@ -14,7 +14,7 @@ leans-on = []
 group = "cockpit"
 what = "mirror each lane and stop into herdr as agent state; a display, never the driver"
 keys = ["cockpit.mode"]
-files = ["ade/herdr.py"]
+files = []
 needs = []
 leans-on = []
 

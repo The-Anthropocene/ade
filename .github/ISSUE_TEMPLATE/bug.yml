@@ -1,0 +1,46 @@
+name: Bug report
+description: Something in ADE stopped or went wrong
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Engine
+      options:
+        - Claude Code
+        - Codex
+        - OpenCode
+        - Pi
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed
+      options:
+        - uv
+        - pipx
+        - download
+    validations:
+      required: true
+  - type: input
+    id: stage
+    attributes:
+      label: Last stage line
+      description: The last lane, build, review, test or land line ade printed
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened

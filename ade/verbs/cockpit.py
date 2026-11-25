@@ -7,9 +7,9 @@ import os
 import sys
 import time
 
-from ade import budget, config, orca, records, stages
+from ade import budget, config, display, records, stages, wait
 from ade.refuse import refuse
-from ade.verbs import conduct, decide, telemetry
+from ade.verbs import conduct, decide, digest, telemetry
 from ade.verbs.handover import next_command
 
 
@@ -54,7 +54,7 @@ def follow(ctx, every):
     pidfile = ctx.root / ".ade" / "cockpit.pid"  # lets a starting loop see that a cockpit terminal is already open
     try:
         other = int(pidfile.read_text().split()[0])
-        if other != os.getpid() and orca._alive(other):
+        if other != os.getpid() and wait.alive(other):
             print(f"a cockpit is already open (pid {other}); this one closes")
             return 0
     except (OSError, ValueError, IndexError):
@@ -85,11 +85,11 @@ def run(args, cwd):
         return follow(ctx, args.every)
     if args.mode:
         ctx.cfg.setdefault("cockpit", {})["mode"] = args.mode
-    shown = orca.on(ctx)
+    shown = display.on(ctx)
     if shown:
         try:
-            orca.board(ctx)
-        except orca.Unavailable as e:
+            display.board(ctx)
+        except display.Unavailable as e:
             if args.mode not in ("orca", "herdr"):  # only a display asked for by name refuses; from ade.toml, the board below still shows
                 print(f"{shown}: not shown ({e}); the board follows here")
                 return show(ctx)
@@ -140,7 +140,7 @@ def show(ctx):
         state = (f"resting to {c['due']}" if c.get("every") else "landed") if c["status"] == "landed" else (stage_outcome(last) if last else "new")
         nxt = "" if c["status"] == "landed" else f"  -> {next_command(ctx, c, journal)}"
         if c["status"] == "open" and conduct.waiting(ctx, c):
-            q = [d for d in records.merged(ctx, "decision").values() if d.get("card") == c["id"]][-1]
+            q = conduct.holding(ctx, c)
             state, nxt = "held", f"  -> ade decide --answer {q['id']} {(decide.FORMS.get(q.get('rec')) or ['retry'])[0]}"
         print(f"  {c['id']:<5} {state:<24} {c['title']}{nxt}")
     if done:
@@ -155,5 +155,7 @@ def show(ctx):
     if w := decide.waiting_line(ctx):
         print(w)
     print(telemetry.meter_text(ctx) or "week meters: none in use")
+    if line := digest.idle_line(ctx):
+        print(line)
     if not budget.off(ctx):
         print(budget.render(budget.measure(ctx)))

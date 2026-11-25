@@ -1,5 +1,5 @@
 # id: ade.verbs.loop
-# what: drive a card through lane, build, review, test, land; journal each stage, stop at the first non-advance. Pilots: run it as a background task, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because the lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
+# what: drive a card through lane, build, review, test, land; journal each stage, stop at the first non-advance. Pilots: run it as a background task the harness tracks and reports the finish of (Claude Code's background Bash, or the equivalent in Codex, OpenCode and Pi), never a detached `&`, nohup or setsid shell, whose finish wakes nobody, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because the lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
 # cmd: ade loop CARD [--model ROLE=ENGINE:MODEL] [--effort ROLE=LEVEL] [--hold-land] [--json]
 # reads: .ade/records.jsonl, lane, graph
 # writes: .ade/records.jsonl (journal rows and stage records), lane, main branch, .ade/lanes/CARD.lock (the running pid), .ade/lanes/CARD.lock.lk (its lock)
@@ -7,7 +7,7 @@ import contextlib
 import json
 import os
 
-from ade import config, host, orca, providers, records, stages, wait
+from ade import config, host, display, providers, records, stages, wait
 from ade.refuse import Refusal, refuse
 from ade.verbs import decide
 
@@ -104,7 +104,7 @@ def _run(args, cwd):
         print(f"{c['id']} {res.note}")
         return 0
     billing(ctx)
-    orca.strip(ctx)
+    display.strip(ctx)
     for stage in stages.STAGES:
         try:
             res = stages.FUNCS[stage](ctx, c)
@@ -115,7 +115,7 @@ def _run(args, cwd):
         records.append(ctx, "journal", {"card": c["id"], "stage": stage, "outcome": res.outcome,
                                         "note": res.note, "next": res.next})
         print(f"{stage:<7} {res.outcome:<16} {res.note}")
-        note = orca.event(ctx, c, stage, res, stages.lane_path(ctx, c["id"]))
+        note = display.event(ctx, c, stage, res, stages.lane_path(ctx, c["id"]))
         if note:
             print(note)
         if res.outcome != "advance":

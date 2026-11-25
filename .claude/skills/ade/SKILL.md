@@ -13,14 +13,14 @@ Start with `ade handover --role ROLE`. Verbs:
   `ade card add TITLE --path GLOB --done TEXT [--every DAYS] [--proof CMD] [--hold REASON] [--profile NAME] [--why TEXT] | ade card draft SENTENCE | ade card list [--free] | ade card show ID | ade card hold ID REASON | ade card close ID --why TEXT | ade card snooze ID --until DATE|Nd | ade card paths ID --path GLOB [--path GLOB ...] [--add]`
 - `ade cockpit`: the pilot's view: every open card with its state and next command, plus budgets; orca mode opens it in Orca too
   `ade cockpit [--mode cli|orca|auto] [--follow] [--every SECONDS]`
-- `ade conduct`: walk the board through `ade loop` until no open card is left untried, one card at a time or several whose reach the graph keeps apart; route every stop by ade/route.toml, wake a model only where the route says wake. Pilots: run it as a background task, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because each lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
+- `ade conduct`: walk the board through `ade loop` until no open card is left untried, one card at a time or several whose reach the graph keeps apart; route every stop by ade/route.toml, wake a model only where the route says wake. Pilots: run it as a background task the harness tracks and reports the finish of (Claude Code's background Bash, or the equivalent in Codex, OpenCode and Pi), never a detached `&`, nohup or setsid shell, whose finish wakes nobody, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because each lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
   `ade conduct [CARD ...] [--lanes N] [--follow [--rounds N]] [--check] [--model ROLE=ENGINE:MODEL] [--effort ROLE=LEVEL] [--json]`
 - `ade config`: list ade.toml's sections, or look up every key matching a word with its effective value and template comment
   `ade config [word] [--roles | --seats | --refusals | --probe [--guards]]`
 - `ade decide`: rulings that govern path globs, and questions for a person with a recommendation, a default and a deadline
   `ade decide --path GLOB TEXT | ade decide --standing TEXT | ade decide --import FILE.jsonl | ade decide --ask TEXT --rec R --default D --by DATE|Nd [--card CARD] | ade decide --answer ID TEXT | ade decide --retire ID --why TEXT [--superseded-by ID] | ade decide --list|--rulings|--queue|--desk|--show ID`
 - `ade digest`: one short summary of a day: cards landed, cards parked with their open question, questions whose default applied; then any rule 7 lines (at most 3)
-  `ade digest [--day YYYY-MM-DD]`
+  `ade digest [--day YYYY-MM-DD] [--idle HOURS]`
 - `ade graph`: regenerate the graph file from headers and imports, or with FILE print that file's briefing from a fresh graph; --check fails if the committed one is stale or the route has drifted
   `ade graph [FILE] [--check] [--route]`
 - `ade handover`: generate a role's working context from records and graph; prints its token estimate, fails over budget
@@ -33,7 +33,7 @@ Start with `ade handover --role ROLE`. Verbs:
   `ade land CARD [--catch-up]`
 - `ade link`: make a plain `ade` work in new shells: one small launcher named ade in a per-user folder already on PATH
   `ade link [--dry-run] [--force]`
-- `ade loop`: drive a card through lane, build, review, test, land; journal each stage, stop at the first non-advance. Pilots: run it as a background task, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because the lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
+- `ade loop`: drive a card through lane, build, review, test, land; journal each stage, stop at the first non-advance. Pilots: run it as a background task the harness tracks and reports the finish of (Claude Code's background Bash, or the equivalent in Codex, OpenCode and Pi), never a detached `&`, nohup or setsid shell, whose finish wakes nobody, and keep working: the flight band (Claude Code) or the cockpit terminal shows each stage, and the background task's own finish is the one wake; safe because the lane builds in its own worktree and branch, tests run in a detached checkout, and land waits only if the main checkout has uncommitted edits to the very paths the card changes or if the main checkout is not on the trunk branch, so do not edit a flying card's paths and keep the main checkout on trunk
   `ade loop CARD [--model ROLE=ENGINE:MODEL] [--effort ROLE=LEVEL] [--hold-land] [--json]`
 - `ade parts`: list the parts catalogue with each part's state; `set x=off` (or `x=on`) switches one in ade.toml and prints what it costs
   `ade parts [set ID=off|on [--why REASON]]`
@@ -50,7 +50,7 @@ Start with `ade handover --role ROLE`. Verbs:
 - `ade status`: one-line state for the Claude Code status line: repo, open cards, last stage outcome
   `ade status [--line]`
 - `ade telemetry`: show usage per card and per provider for the week, each week meter against its share; export OTLP files locally; --week: the 7-day burn from this machine's transcripts
-  `ade telemetry [export] [--flights] [--outcomes [--since DATE]] [--week [--json] [--since ISO]]`
+  `ade telemetry [export] [--flights] [--outcomes [--since DATE]] [--week [--json] [--since ISO] [--until ISO]]`
 - `ade uninstall`: remove everything `ade init` generated (hooks, rules, agents, AGENTS.md block, graph); keep ade.toml and records
   `ade uninstall [--dry-run]`
 - `ade wait`: wait for a condition with a bound (exit 0 met, 3 stage parked, 4 bound passed, 5 lane stalled); run it in the background to be told; `stage` is a condition for a pilot that needs to block on one stage

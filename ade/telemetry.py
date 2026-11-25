@@ -306,12 +306,6 @@ def _reading(ctx, provider, now=None):
     return "ok", last["week"], last.get("five_hour"), last.get("week_resets")
 
 
-def meter(ctx, provider):
-    """Share of the provider's week used, from a fresh reading; None when there is none, it is stale, or it reset."""
-    state, week, _ = reading(ctx, provider)
-    return week if state == "ok" else None
-
-
 def meters(ctx, providers):
     # (provider, used, share, over) for each provider in use that has a share. `used` is a word whenever there is no
     # fresh number ("stale", "reset passed", "not reported"), never a zero; `over` is only ever set by a fresh one.

@@ -12,7 +12,6 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -611,38 +610,16 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
                         silent = True
                         raise
             if bg is not None:  # end the group now; what the model answered and edited stays
-                if os.name == "nt":
-                    if job:
-                        host.job_end(job)
-                else:
-                    try:
-                        os.killpg(proc.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                host.end_tree(proc, job, True)
+                job = None  # a job ends once
                 proc.kill()
                 out, err = proc.communicate()
                 proc.returncode = 0
             r = subprocess.CompletedProcess(argv, proc.returncode, out, err)
             # A normal exit ends the group too: a leftover child would hold the lane's git lock.
-            if os.name == "nt":
-                if job:
-                    host.job_end(job)
-            else:
-                try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    pass
+            host.end_tree(proc, job, False)
         except subprocess.TimeoutExpired:
-            if os.name == "nt":
-                if job:
-                    host.job_end(job)
-                else:  # job setup failed: the old tree walk, on the timeout path only
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
-            else:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+            host.end_tree(proc, job, True)  # no job: the old tree walk, on the timeout path only
             proc.kill()
             err = proc.communicate()[1]  # reap
             r = None
@@ -670,6 +647,7 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
     text, fields = telemetry.parse(r.stdout)
     if bg is not None and role == "builder":
         BACKGROUNDED[card["id"]] = bg
+    _billed_to(spec, name, r.stdout)
     telemetry.note(ctx, "claude", "lane stream", fields.pop("limits", None))
     # A lane given CLAUDE_CODE_PROMPT_CACHE_TTL=1h (pass_env) writes 1-hour cache on purpose, so that is no sign.
     if name == "claude" and "ANTHROPIC_API_KEY" in spec.get("secrets", {}) and fields.get("cache_write_1h", 0) > 0 \
@@ -703,6 +681,26 @@ def _call(ctx, role, prompt, cwd, card, extra=(), session=None, name=None):
         written = config.merge(tomllib.loads(host.read(config.TEMPLATE)), tomllib.loads(host.read(ctx.root / "ade.toml")))
         NAMED[card["id"]] = name in install.engines(config.Ctx(ctx.root, written))  # ade.toml as written, not this run's --model
     return text
+
+
+BILLED = []  # one apiKeySource warning per process
+
+
+def _billed_to(spec, name, out):
+    # Claude Code's init event names what it bills; a key it found while ADE expects a plan login is worth one line.
+    if name != "claude" or "ANTHROPIC_API_KEY" in spec.get("secrets", {}) or BILLED:
+        return
+    for line in out.splitlines():
+        if '"apiKeySource"' in line and '"init"' in line:
+            try:
+                src = json.loads(line).get("apiKeySource")
+            except ValueError:
+                continue
+            if src and src != "none":
+                BILLED.append(src)
+                print(f"claude lanes: Claude Code billed this call to {src}, not your login; check whether claude -p still runs "
+                      "on a plan login (https://code.claude.com/docs/en/headless)", file=sys.stderr)
+                return
 
 
 def _is_update(line):

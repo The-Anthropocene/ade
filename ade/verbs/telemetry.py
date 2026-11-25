@@ -1,6 +1,6 @@
 # id: ade.verbs.telemetry
 # what: show usage per card and per provider for the week, each week meter against its share; export OTLP files locally; --week: the 7-day burn from this machine's transcripts
-# cmd: ade telemetry [export] [--flights] [--outcomes [--since DATE]] [--week [--json] [--since ISO]]
+# cmd: ade telemetry [export] [--flights] [--outcomes [--since DATE]] [--week [--json] [--since ISO] [--until ISO]]
 # reads: .ade/records.jsonl usage rows, ade.toml [usage]; with --week, ade.burn's sources
 # writes: .ade/telemetry/ (export only)
 import contextlib
@@ -16,6 +16,7 @@ PLAN_PRICE = dict(zip(telemetry.PLANS, (200, 100, 20)))  # in PLANS order; month
 def add(p):
     p.add_argument("--outcomes", action="store_true", help="what landed, parked and was answered this week, from the records")
     p.add_argument("--since", type=datetime.fromisoformat, metavar="DATE", help="with --outcomes or --week: start at DATE, not 7 days ago")
+    p.add_argument("--until", type=datetime.fromisoformat, metavar="ISO", help="with --week: a closed week, counting only what is at or before ISO")
     p.add_argument("--week", action="store_true", help="the 7-day burn from this machine's Claude Code and Codex transcripts (ade/burn.py)")
     p.add_argument("--json", action="store_true", help="with --week: the same data as JSON")
     p.add_argument("action", nargs="?", choices=["export"], help="write OpenTelemetry JSON to .ade/telemetry/")
@@ -149,7 +150,7 @@ def run(args, cwd):
         out, spans, points = telemetry.export(ctx)
         print(f"wrote {out}/traces.json ({spans} spans) and metrics.json ({points} points); nothing was sent anywhere")
         return 0
-    if args.week or args.json or (args.since and not args.outcomes):
+    if args.week or args.json or args.until or (args.since and not args.outcomes):
         return burn.run(ctx, args) or 0
     if args.outcomes:
         return outcomes(ctx, args.since or datetime.now(timezone.utc) - timedelta(days=7)) or 0

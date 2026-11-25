@@ -120,3 +120,8 @@ engine = "opposite"
 [roles.reviewer]
 system_prompt = "roles/reviewer.examples.md"
 effort = { codex = "medium" }
+
+# Every machine lands through a pull request (c1108): a fresh clone
+# that lacks a local edit would otherwise push main directly, as c1104 did on 20 Nov.
+[git]
+push = "pr"
